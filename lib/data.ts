@@ -3,6 +3,9 @@
 import type { Order, Client, Asset, User, Observation } from "./types"
 import { getClientById as getClientByIdFromDB } from "@/lib/services/db-service"
 
+// Export the Asset type
+export type { Asset }
+
 // Función para cargar órdenes desde localStorage
 function loadOrdersFromStorage(): Order[] {
   if (typeof window !== "undefined") {
