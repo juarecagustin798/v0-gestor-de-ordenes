@@ -1,29 +1,34 @@
-- // app/assets/page.tsx
--import { getAssets } from "@/lib/data"
-+ "use client";              // ← OBLIGATORIO para que Next la trate como Client Component
-+ import { getAssets } from "@/lib/data"
+"use client"
 
-// app/assets/page.tsx
-"use client";
+import { useEffect, useState } from "react"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { getAssets } from "@/lib/data"
 
-import { useEffect, useState } from "react";
-import { getAssets, Asset } from "@/lib/data";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ScrollArea } from "@/components/ui/scroll-area";
+// Define the Asset interface directly in this file to avoid import issues
+interface Asset {
+  id: string
+  name: string
+  ticker?: string
+  symbol?: string
+  type: string
+  isin?: string
+  currency?: string
+}
 
 export default function AssetsPage() {
-  const [assets, setAssets] = useState<Asset[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [assets, setAssets] = useState<Asset[]>([])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     getAssets()
       .then(setAssets)
       .catch(console.error)
-      .finally(() => setLoading(false));
-  }, []);
+      .finally(() => setLoading(false))
+  }, [])
 
   if (loading) {
-    return <div className="container mx-auto py-6">Cargando activos…</div>;
+    return <div className="container mx-auto py-6">Cargando activos…</div>
   }
 
   return (
@@ -46,7 +51,7 @@ export default function AssetsPage() {
                   <CardContent>
                     <div className="grid grid-cols-2 gap-2 text-sm">
                       <div className="font-medium">Symbol:</div>
-                      <div>{asset.symbol}</div>
+                      <div>{asset.symbol || asset.ticker}</div>
                       {asset.isin && (
                         <>
                           <div className="font-medium">ISIN:</div>
@@ -68,5 +73,5 @@ export default function AssetsPage() {
         </CardContent>
       </Card>
     </div>
-  );
+  )
 }

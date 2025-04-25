@@ -1,10 +1,12 @@
 "use client"
 
-import type { Order, Client, Asset, User, Observation } from "./types"
+import type { Order, Client, User, Observation } from "./types"
 import { getClientById as getClientByIdFromDB } from "@/lib/services/db-service"
 
-// Export the Asset type
-export type { Asset }
+// Export the Asset type - this line might be causing the issue
+// export type { Asset }
+// Let's fix it by using a different approach:
+export type Asset = import("./types").Asset
 
 // Función para cargar órdenes desde localStorage
 function loadOrdersFromStorage(): Order[] {
