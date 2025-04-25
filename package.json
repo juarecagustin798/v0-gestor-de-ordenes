@@ -63,10 +63,10 @@
     "uuid": "latest",
     "path": "latest",
     "fs": "latest",
-    "react-window": "latest",
     "idb": "latest",
     "@supabase/auth-helpers-nextjs": "latest",
-    "@tanstack/react-table": "latest"
+    "@tanstack/react-table": "latest",
+    "react-window": "latest"
   },
   "devDependencies": {
     "@types/node": "^22",

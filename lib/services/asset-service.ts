@@ -1,21 +1,28 @@
+"use client"
+
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import type { Asset } from "@/lib/types"
 import { createClient } from "@/lib/supabase/server"
 import type { Database } from "@/lib/supabase/database.types"
 
-/**
- * Fetches all assets from the database
- * @returns Array of assets
- */
-export async function getAssets() {
-  const supabase = createClient()
+// Función para obtener activos desde Supabase
+export async function getAssets(): Promise<Asset[]> {
+  try {
+    // Usar el cliente de componente en lugar del servidor
+    const supabase = createClientComponentClient()
 
-  const { data: assets, error } = await supabase.from("activos").select("*").order("nombre")
+    const { data, error } = await supabase.from("assets").select("*")
 
-  if (error) {
-    console.error("Error fetching assets:", error)
-    throw new Error(`Failed to fetch assets: ${error.message}`)
+    if (error) {
+      console.error("Error al obtener activos:", error)
+      return []
+    }
+
+    return data || []
+  } catch (error) {
+    console.error("Error al obtener activos:", error)
+    return []
   }
-
-  return assets || []
 }
 
 /**
