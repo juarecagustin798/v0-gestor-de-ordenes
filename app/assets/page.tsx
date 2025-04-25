@@ -1,9 +1,9 @@
-import { getAssets } from "@/lib/data"
+import { getAssetsServer } from "@/lib/services/asset-service-server"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { ScrollArea } from "@/components/ui/scroll-area"
 
 export default async function AssetsPage() {
-  const assets = await getAssets()
+  const assets = await getAssetsServer()
 
   return (
     <div className="container mx-auto py-6">
@@ -20,23 +20,23 @@ export default async function AssetsPage() {
               {assets.map((asset) => (
                 <Card key={asset.id} className="border">
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-lg">{asset.name}</CardTitle>
-                    <CardDescription>{asset.type}</CardDescription>
+                    <CardTitle className="text-lg">{asset.nombre || asset.name}</CardTitle>
+                    <CardDescription>{asset.tipo || asset.type}</CardDescription>
                   </CardHeader>
                   <CardContent>
                     <div className="grid grid-cols-2 gap-2 text-sm">
                       <div className="font-medium">Symbol:</div>
-                      <div>{asset.symbol}</div>
+                      <div>{asset.simbolo || asset.symbol}</div>
                       {asset.isin && (
                         <>
                           <div className="font-medium">ISIN:</div>
                           <div>{asset.isin}</div>
                         </>
                       )}
-                      {asset.currency && (
+                      {(asset.moneda || asset.currency) && (
                         <>
                           <div className="font-medium">Currency:</div>
-                          <div>{asset.currency}</div>
+                          <div>{asset.moneda || asset.currency}</div>
                         </>
                       )}
                     </div>

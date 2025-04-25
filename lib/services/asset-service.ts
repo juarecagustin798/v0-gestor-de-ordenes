@@ -1,43 +1,38 @@
 "use client"
 
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
-import type { Asset } from "@/lib/types"
-import { createClient } from "@/lib/supabase/server"
 import type { Database } from "@/lib/supabase/database.types"
 
-// Función para obtener activos desde Supabase
-export async function getAssets(): Promise<Asset[]> {
-  try {
-    // Usar el cliente de componente en lugar del servidor
-    const supabase = createClientComponentClient()
+/**
+ * Fetches all assets from the database (client-side version)
+ * @returns Array of assets
+ */
+export async function getAssets() {
+  const supabase = createClientComponentClient<Database>()
 
-    const { data, error } = await supabase.from("assets").select("*")
+  const { data: assets, error } = await supabase.from("activos").select("*").order("nombre")
 
-    if (error) {
-      console.error("Error al obtener activos:", error)
-      return []
-    }
-
-    return data || []
-  } catch (error) {
-    console.error("Error al obtener activos:", error)
+  if (error) {
+    console.error("Error fetching assets:", error)
     return []
   }
+
+  return assets || []
 }
 
 /**
- * Fetches an asset by its ID
+ * Fetches an asset by its ID (client-side version)
  * @param id Asset ID
  * @returns Asset object or null if not found
  */
 export async function getAssetById(id: string) {
-  const supabase = createClient()
+  const supabase = createClientComponentClient<Database>()
 
   const { data, error } = await supabase.from("activos").select("*").eq("id", id).single()
 
   if (error && error.code !== "PGSQL_ERROR_NO_ROWS") {
     console.error("Error fetching asset by ID:", error)
-    throw new Error(`Failed to fetch asset: ${error.message}`)
+    return null
   }
 
   return data
@@ -49,7 +44,7 @@ export async function getAssetById(id: string) {
  * @returns Created asset
  */
 export async function createAsset(asset: Omit<Database["public"]["Tables"]["activos"]["Insert"], "id">) {
-  const supabase = createClient()
+  const supabase = createClientComponentClient<Database>()
 
   const { data, error } = await supabase.from("activos").insert(asset).select().single()
 
@@ -68,7 +63,7 @@ export async function createAsset(asset: Omit<Database["public"]["Tables"]["acti
  * @returns Updated asset
  */
 export async function updateAsset(id: string, asset: Partial<Database["public"]["Tables"]["activos"]["Update"]>) {
-  const supabase = createClient()
+  const supabase = createClientComponentClient<Database>()
 
   const { data, error } = await supabase.from("activos").update(asset).eq("id", id).select().single()
 
@@ -86,7 +81,7 @@ export async function updateAsset(id: string, asset: Partial<Database["public"][
  * @returns Success status
  */
 export async function deleteAsset(id: string) {
-  const supabase = createClient()
+  const supabase = createClientComponentClient<Database>()
 
   const { error } = await supabase.from("activos").delete().eq("id", id)
 
