@@ -1,11 +1,12 @@
-"use client"
-
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { cookies } from "next/headers"
+import { createServerComponentClient } from "@supabase/auth-helpers-nextjs"
 import type { Database } from "@/lib/supabase/database.types"
 
-// Cliente para componentes del lado del servidor
 export const createServerClient = () => {
-  return createClientComponentClient<Database>()
+  const cookieStore = cookies()
+  return createServerComponentClient<Database>({
+    cookies: () => cookieStore,
+  })
 }
 
 // Alias para mantener compatibilidad con el nombre requerido
