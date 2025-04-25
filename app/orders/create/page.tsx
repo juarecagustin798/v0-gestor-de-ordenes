@@ -1,28 +1,49 @@
-import { DashboardHeader } from "@/components/dashboard-header"
-import { DashboardShell } from "@/components/dashboard-shell"
-import { OrderCreationForm } from "@/components/new-order-form/order-creation-form"
-import { getClients, getAssets } from "@/lib/data"
+'use client'
 
-export default async function CreateOrderPage() {
-  // Obtener los datos necesarios para el formulario
-  const clients = await getClients()
-  const assets = await getAssets()
+import { useState, useEffect } from 'react'
+import { DashboardHeader } from '@/components/dashboard-header'
+import { DashboardShell } from '@/components/dashboard-shell'
+import { OrderCreationForm } from '@/components/new-order-form/order-creation-form'
+import { getClients, getAssets } from '@/lib/data'
+import type { Client, Asset } from '@/lib/data'
 
-  // Buscar la función que maneja la creación de órdenes
-  // Modificar para asegurar que el tipo se mantenga como lo envió el usuario
+export default function CreateOrderPage() {
+  const [clients, setClients] = useState<Client[]>([])
+  const [assets, setAssets] = useState<Asset[]>([])
+  const [loading, setLoading] = useState(true)
 
-  // Buscar algo como:
-  const handleCreateOrder = async (formData: any) => {
-    // Asegurarse de que esta línea no esté sobrescribiendo el tipo:
-    // formData.type = "Venta"; // <-- Eliminar o comentar esta línea si existe
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const [clientsData, assetsData] = await Promise.all([
+          getClients(),
+          getAssets()
+        ])
+        setClients(clientsData)
+        setAssets(assetsData)
+      } catch (error) {
+        console.error('Error cargando datos en CreateOrderPage:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadData()
+  }, [])
 
-    // Agregar un log para depuración:
-    console.log("Tipo de operación antes de enviar a createOrder:", formData.type)
+  if (loading) {
+    return (
+      <DashboardShell>
+        <DashboardHeader heading="Crear Orden" text="Cargando datos…" />
+      </DashboardShell>
+    )
   }
 
   return (
     <DashboardShell>
-      <DashboardHeader heading="Crear Orden" text="Crea una nueva orden para un cliente." />
+      <DashboardHeader
+        heading="Crear Orden"
+        text="Crea una nueva orden para un cliente."
+      />
       <div className="grid gap-8">
         <OrderCreationForm clients={clients} assets={assets} />
       </div>
