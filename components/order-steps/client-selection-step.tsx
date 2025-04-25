@@ -89,4 +89,3 @@ export function ClientSelectionStep({ clients, selectedClientId, onClientSelect 
     </div>
   )
 }
-

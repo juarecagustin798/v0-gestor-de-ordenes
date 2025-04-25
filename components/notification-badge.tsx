@@ -56,4 +56,3 @@ export function NotificationBadge({ count, variant = "default", onClick }: Notif
     </Badge>
   )
 }
-

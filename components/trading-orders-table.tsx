@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import {
   type ColumnDef,
   type ColumnFiltersState,
@@ -46,21 +46,26 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Card, CardContent } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
-import type { Order, User } from "@/lib/types"
-import { updateOrderStatus, markNotificationsAsRead } from "@/lib/actions"
+import type { Order } from "@/lib/types"
 import { toast } from "@/hooks/use-toast"
 import { StatusUpdateDialog } from "./status-update-dialog"
 import { ExecutionConfirmationDialog } from "./execution-confirmation-dialog"
 import { NotificationBadge } from "./notification-badge"
 
-interface TradingOrdersTableProps {
-  orders: Order[]
-  traders: User[]
+// Importar el servicio de Supabase para órdenes
+import { OrdenService, type Orden } from "@/lib/services/orden-supabase-service-client"
+import { createClient } from "@/lib/supabase/client"
+
+// Modificar la función TradingOrdersTable para usar Supabase
+export function TradingOrdersTable({
+  availableActions,
+  readOnly = false,
+  status,
+}: {
   availableActions: ("tomar" | "ejecutar" | "ejecutarParcial" | "revisar" | "cancelar")[]
   readOnly?: boolean
-}
-
-export function TradingOrdersTable({ orders, traders, availableActions, readOnly = false }: TradingOrdersTableProps) {
+  status?: string
+}) {
   const router = useRouter()
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
@@ -68,6 +73,11 @@ export function TradingOrdersTable({ orders, traders, availableActions, readOnly
   const [rowSelection, setRowSelection] = useState({})
   const [isUpdating, setIsUpdating] = useState(false)
   const [activeFilters, setActiveFilters] = useState<Record<string, boolean>>({})
+  const [orders, setOrders] = useState<Order[]>([])
+  const [loading, setLoading] = useState(false) // Cambiado a false por defecto
+  const [initialLoadDone, setInitialLoadDone] = useState(false)
+  const [debugInfo, setDebugInfo] = useState<string>("")
+  const ordersRef = useRef<Order[]>([])
 
   // Estado para el diálogo de actualización de estado
   const [statusDialogOpen, setStatusDialogOpen] = useState(false)
@@ -153,6 +163,368 @@ export function TradingOrdersTable({ orders, traders, availableActions, readOnly
     }
   }
 
+  // Función para cargar órdenes desde Supabase
+  const loadOrders = async () => {
+    // Si no se ha hecho la carga inicial, mostrar el indicador de carga
+    if (!initialLoadDone) {
+      setLoading(true)
+    }
+
+    try {
+      let debugText = "Cargando órdenes desde Supabase...\n"
+      console.log("Cargando órdenes desde Supabase...")
+
+      // Cargar órdenes según el estado actual
+      let ordersData: Orden[] = []
+
+      // Si se proporciona un estado específico, cargar órdenes con ese estado
+      if (status) {
+        debugText += `Cargando órdenes con estado '${status}'...\n`
+        console.log(`Cargando órdenes con estado '${status}'...`)
+        ordersData = await OrdenService.obtenerOrdenesPorEstado(status)
+
+        // Si no hay resultados, intentar con minúsculas
+        if (ordersData.length === 0) {
+          debugText += `No se encontraron órdenes con estado '${status}', intentando con minúsculas...\n`
+          ordersData = await OrdenService.obtenerOrdenesPorEstado(status.toLowerCase())
+        }
+
+        // Si aún no hay resultados, cargar todas y filtrar manualmente
+        if (ordersData.length === 0) {
+          debugText += `No se encontraron órdenes con estado '${status.toLowerCase()}', filtrando manualmente...\n`
+          const allOrders = await OrdenService.obtenerOrdenes()
+          ordersData = allOrders.filter((o) => o.estado.toLowerCase() === status.toLowerCase() || o.estado === status)
+        }
+      } else if (availableActions.includes("tomar")) {
+        // Si puede tomar órdenes, mostrar las pendientes
+        debugText += "Cargando órdenes pendientes...\n"
+        console.log("Cargando órdenes pendientes...")
+
+        // Primero, cargar todas las órdenes para depuración
+        const allOrders = await OrdenService.obtenerOrdenes()
+        debugText += `Total de órdenes en la base de datos: ${allOrders.length}\n`
+        debugText += `Estados disponibles: ${[...new Set(allOrders.map((o) => o.estado))].join(", ")}\n`
+
+        // Ahora cargar las pendientes
+        ordersData = await OrdenService.obtenerOrdenesPorEstado("pendiente")
+
+        // Si no hay resultados, intentar con primera letra mayúscula
+        if (ordersData.length === 0) {
+          debugText += "No se encontraron órdenes con estado 'pendiente', intentando con 'Pendiente'...\n"
+          ordersData = await OrdenService.obtenerOrdenesPorEstado("Pendiente")
+        }
+
+        // Si aún no hay resultados, cargar todas y filtrar manualmente
+        if (ordersData.length === 0) {
+          debugText += "No se encontraron órdenes con estado 'Pendiente', filtrando manualmente...\n"
+          ordersData = allOrders.filter(
+            (o) => o.estado.toLowerCase() === "pendiente" || o.estado === "pendiente" || o.estado === "Pendiente",
+          )
+        }
+      } else if (availableActions.includes("ejecutar") || availableActions.includes("ejecutarParcial")) {
+        // Si puede ejecutar órdenes, mostrar las tomadas
+        debugText += "Cargando órdenes en proceso...\n"
+        console.log("Cargando órdenes en proceso...")
+        ordersData = await OrdenService.obtenerOrdenesPorEstado("Tomada")
+
+        // Si no hay resultados, intentar con minúsculas
+        if (ordersData.length === 0) {
+          debugText += "No se encontraron órdenes con estado 'Tomada', intentando con 'tomada'...\n"
+          ordersData = await OrdenService.obtenerOrdenesPorEstado("tomada")
+        }
+      } else if (readOnly) {
+        // Si es solo lectura, filtrar según la pestaña actual
+        if (availableActions.length === 0) {
+          // Determinar qué pestaña es según el contexto
+          const currentTab = getCurrentTab()
+          debugText += `Cargando órdenes para la pestaña ${currentTab}...\n`
+          console.log(`Cargando órdenes para la pestaña ${currentTab}...`)
+
+          if (currentTab === "completed") {
+            ordersData = await OrdenService.obtenerOrdenesPorEstado("Ejecutada")
+
+            // Si no hay resultados, intentar con minúsculas
+            if (ordersData.length === 0) {
+              debugText += "No se encontraron órdenes con estado 'Ejecutada', intentando con 'ejecutada'...\n"
+              ordersData = await OrdenService.obtenerOrdenesPorEstado("ejecutada")
+            }
+          } else if (currentTab === "canceled") {
+            ordersData = await OrdenService.obtenerOrdenesPorEstado("Cancelada")
+
+            // Si no hay resultados, intentar con minúsculas
+            if (ordersData.length === 0) {
+              debugText += "No se encontraron órdenes con estado 'Cancelada', intentando con 'cancelada'...\n"
+              ordersData = await OrdenService.obtenerOrdenesPorEstado("cancelada")
+            }
+          } else if (currentTab === "under-review") {
+            // Para la pestaña "En Revisión", cargar órdenes con estado "Revisar"
+            ordersData = await OrdenService.obtenerOrdenesPorEstado("Revisar")
+
+            // Si no hay resultados, intentar con minúsculas
+            if (ordersData.length === 0) {
+              debugText += "No se encontraron órdenes con estado 'Revisar', intentando con 'revisar'...\n"
+              ordersData = await OrdenService.obtenerOrdenesPorEstado("revisar")
+            }
+          } else {
+            // Fallback: cargar todas las órdenes
+            debugText += "Cargando todas las órdenes como fallback...\n"
+            ordersData = await OrdenService.obtenerOrdenes()
+          }
+        }
+      }
+
+      debugText += `Órdenes cargadas: ${ordersData.length}\n`
+      console.log("Órdenes cargadas:", ordersData)
+
+      // Convertir las órdenes de Supabase al formato que espera el componente
+      const mappedOrders = ordersData.map(mapSupabaseOrderToOrder)
+      debugText += `Órdenes mapeadas: ${mappedOrders.length}\n`
+      console.log("Órdenes mapeadas:", mappedOrders)
+
+      // Actualizar la referencia de órdenes
+      ordersRef.current = mappedOrders
+
+      // Actualizar el estado de órdenes sin causar parpadeo
+      setOrders(mappedOrders)
+      setDebugInfo(debugText)
+      setInitialLoadDone(true)
+    } catch (error) {
+      console.error("Error al cargar órdenes:", error)
+      setDebugInfo(`Error al cargar órdenes: ${error}`)
+      toast({
+        title: "Error",
+        description: "No se pudieron cargar las órdenes desde Supabase",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Función auxiliar para determinar la pestaña actual
+  const getCurrentTab = () => {
+    // Intentar determinar la pestaña actual basado en la URL
+    if (typeof window !== "undefined") {
+      const url = window.location.href
+      if (url.includes("#completed") || url.includes("?tab=completed")) {
+        return "completed"
+      } else if (url.includes("#canceled") || url.includes("?tab=canceled")) {
+        return "canceled"
+      } else if (url.includes("#in-progress") || url.includes("?tab=in-progress")) {
+        return "in-progress"
+      } else if (url.includes("#pending") || url.includes("?tab=pending")) {
+        return "pending"
+      } else if (url.includes("#under-review") || url.includes("?tab=under-review")) {
+        return "under-review"
+      }
+    }
+
+    // Si no podemos determinar la pestaña, inferir basado en availableActions
+    if (readOnly) {
+      // Si es readOnly y no tiene acciones, probablemente es "completed" o "canceled"
+      return "completed"
+    } else if (availableActions.includes("tomar")) {
+      return "pending"
+    } else if (availableActions.includes("ejecutar")) {
+      return "in-progress"
+    }
+
+    return "unknown"
+  }
+
+  // Función para mapear una orden de Supabase al formato que espera el componente
+  const mapSupabaseOrderToOrder = (supabaseOrder: Orden): Order => {
+    // Obtener el primer detalle de la orden (si existe)
+    const detalle = supabaseOrder.detalles && supabaseOrder.detalles.length > 0 ? supabaseOrder.detalles[0] : null
+
+    // Asegurar que el estado tenga el formato correcto (primera letra mayúscula)
+    const estado = supabaseOrder.estado
+      ? supabaseOrder.estado.charAt(0).toUpperCase() + supabaseOrder.estado.slice(1).toLowerCase()
+      : "Pendiente"
+
+    return {
+      id: supabaseOrder.id,
+      client: supabaseOrder.cliente_nombre || "Cliente sin nombre",
+      ticker: detalle?.ticker || "Sin ticker",
+      type: supabaseOrder.tipo_operacion,
+      quantity: detalle?.cantidad || 0,
+      price: detalle?.precio || 0,
+      total: (detalle?.cantidad || 0) * (detalle?.precio || 0),
+      status: estado,
+      mercado: supabaseOrder.mercado || "No especificado",
+      trader: "Pendiente", // Esto debería venir de la base de datos
+      createdAt: new Date(supabaseOrder.created_at),
+      commercial: "Comercial", // Esto debería venir de la base de datos
+      isSwap: false, // Esto debería determinarse según la lógica de negocio
+      unreadUpdates: 0, // Esto debería calcularse según las notificaciones
+      // Añadir el número de cuenta del cliente
+      clientAccount: supabaseOrder.cliente_cuenta || "Sin cuenta",
+    }
+  }
+
+  // Configurar suscripción a cambios en tiempo real
+  useEffect(() => {
+    console.log("Configurando suscripción a cambios en tiempo real...")
+
+    const supabase = createClient()
+
+    // Suscribirse a cambios en la tabla de órdenes
+    const subscription = supabase
+      .channel("ordenes-changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "ordenes",
+        },
+        (payload) => {
+          console.log("Nueva orden detectada:", payload)
+          // Obtener la nueva orden y añadirla al estado si corresponde al filtro actual
+          handleNewOrder(payload.new)
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "ordenes",
+        },
+        (payload) => {
+          console.log("Orden actualizada:", payload)
+          // Actualizar la orden en el estado
+          handleUpdatedOrder(payload.new)
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "DELETE",
+          schema: "public",
+          table: "ordenes",
+        },
+        (payload) => {
+          console.log("Orden eliminada:", payload)
+          // Eliminar la orden del estado
+          handleDeletedOrder(payload.old.id)
+        },
+      )
+      .subscribe()
+
+    // Cargar órdenes iniciales
+    loadOrders()
+
+    // Limpiar suscripción al desmontar
+    return () => {
+      console.log("Limpiando suscripción...")
+      subscription.unsubscribe()
+    }
+  }, [availableActions, readOnly, status])
+
+  // Función para manejar una nueva orden
+  const handleNewOrder = async (newOrderData: any) => {
+    try {
+      // Verificar si la orden debe mostrarse según los filtros actuales
+      const shouldShow = await shouldShowOrder(newOrderData)
+
+      if (shouldShow) {
+        // Convertir la orden al formato que espera el componente
+        const mappedOrder = mapSupabaseOrderToOrder(newOrderData)
+
+        // Añadir la nueva orden al estado sin recargar toda la tabla
+        setOrders((prevOrders) => {
+          const newOrders = [...prevOrders, mappedOrder]
+          // Actualizar también la referencia
+          ordersRef.current = newOrders
+          return newOrders
+        })
+      }
+    } catch (error) {
+      console.error("Error al procesar nueva orden:", error)
+    }
+  }
+
+  // Función para manejar una orden actualizada
+  const handleUpdatedOrder = async (updatedOrderData: any) => {
+    try {
+      // Verificar si la orden debe mostrarse según los filtros actuales
+      const shouldShow = await shouldShowOrder(updatedOrderData)
+
+      setOrders((prevOrders) => {
+        // Crear una copia del array actual para modificarlo
+        let newOrders = [...prevOrders]
+
+        // Buscar si la orden ya existe en el estado
+        const orderIndex = newOrders.findIndex((order) => order.id === updatedOrderData.id)
+
+        // Si la orden existe y debe mostrarse, actualizarla
+        if (orderIndex >= 0 && shouldShow) {
+          newOrders[orderIndex] = mapSupabaseOrderToOrder(updatedOrderData)
+        }
+        // Si la orden existe pero no debe mostrarse, eliminarla
+        else if (orderIndex >= 0 && !shouldShow) {
+          newOrders = newOrders.filter((order) => order.id !== updatedOrderData.id)
+        }
+        // Si la orden no existe pero debe mostrarse, añadirla
+        else if (orderIndex < 0 && shouldShow) {
+          newOrders.push(mapSupabaseOrderToOrder(updatedOrderData))
+        }
+
+        // Actualizar la referencia
+        ordersRef.current = newOrders
+        return newOrders
+      })
+    } catch (error) {
+      console.error("Error al procesar orden actualizada:", error)
+    }
+  }
+
+  // Función para manejar una orden eliminada
+  const handleDeletedOrder = (deletedOrderId: string) => {
+    // Eliminar la orden del estado
+    setOrders((prevOrders) => {
+      const newOrders = prevOrders.filter((order) => order.id !== deletedOrderId)
+      // Actualizar la referencia
+      ordersRef.current = newOrders
+      return newOrders
+    })
+  }
+
+  // Función para determinar si una orden debe mostrarse según los filtros actuales
+  const shouldShowOrder = async (orderData: any): Promise<boolean> => {
+    // Si se proporciona un estado específico, verificar si la orden tiene ese estado
+    if (status) {
+      return orderData.estado === status || orderData.estado.toLowerCase() === status.toLowerCase()
+    }
+
+    // Si puede tomar órdenes, mostrar las pendientes
+    if (availableActions && availableActions.includes("tomar")) {
+      return orderData.estado === "Pendiente" || orderData.estado === "pendiente"
+    }
+
+    // Si puede ejecutar órdenes, mostrar las tomadas
+    if (availableActions && (availableActions.includes("ejecutar") || availableActions.includes("ejecutarParcial"))) {
+      return orderData.estado === "Tomada" || orderData.estado === "tomada"
+    }
+
+    // Si es solo lectura, filtrar según la pestaña actual
+    if (readOnly) {
+      const currentTab = getCurrentTab()
+
+      if (currentTab === "completed") {
+        return orderData.estado === "Ejecutada" || orderData.estado === "ejecutada"
+      } else if (currentTab === "canceled") {
+        return orderData.estado === "Cancelada" || orderData.estado === "cancelada"
+      } else if (currentTab === "under-review") {
+        return orderData.estado === "Revisar" || orderData.estado === "revisar"
+      }
+    }
+
+    // Por defecto, mostrar la orden
+    return true
+  }
+
   // Procesar la actualización de estado para una orden individual o todas las órdenes
   const processStatusUpdate = async (params: {
     observation: string
@@ -188,7 +560,6 @@ export function TradingOrdersTable({ orders, traders, availableActions, readOnly
 
         // Limpiar selección y refrescar
         setRowSelection({})
-        router.refresh()
         return
       }
     }
@@ -207,30 +578,22 @@ export function TradingOrdersTable({ orders, traders, availableActions, readOnly
 
     try {
       setIsUpdating(true)
-      const result = await updateOrderStatus({
-        orderIds: orderIds,
-        status: selectedStatus,
-        observation: params.observation,
-        executedQuantity: params.executedQuantity,
-        executedPrice: params.executedPrice,
+
+      // Asegurar que el estado tenga el formato correcto
+      const formattedStatus = selectedStatus.charAt(0).toUpperCase() + selectedStatus.slice(1).toLowerCase()
+
+      // Actualizar cada orden en Supabase
+      for (const orderId of orderIds) {
+        await OrdenService.actualizarEstadoOrden(orderId, formattedStatus, params.observation)
+      }
+
+      toast({
+        title: "Estado actualizado",
+        description: `Se han actualizado ${orderIds.length} órdenes correctamente.`,
       })
 
-      if (result.success) {
-        toast({
-          title: "Estado actualizado",
-          description: result.message,
-        })
-        // Limpiar selección
-        setRowSelection({})
-        // Forzar actualización de la página
-        router.refresh()
-      } else {
-        toast({
-          title: "Error",
-          description: result.error || "No se pudo actualizar el estado",
-          variant: "destructive",
-        })
-      }
+      // Limpiar selección
+      setRowSelection({})
     } catch (error) {
       toast({
         title: "Error",
@@ -253,13 +616,7 @@ export function TradingOrdersTable({ orders, traders, availableActions, readOnly
     },
   ) => {
     try {
-      const result = await updateOrderStatus({
-        orderIds: [orderId],
-        status: selectedStatus!,
-        observation: params.observation,
-        executedQuantity: params.executedQuantity,
-        executedPrice: params.executedPrice,
-      })
+      const result = await OrdenService.actualizarEstadoOrden(orderId, selectedStatus!, params.observation)
 
       if (!result.success) {
         toast({
@@ -286,7 +643,8 @@ export function TradingOrdersTable({ orders, traders, availableActions, readOnly
       // Solo marcar como leída si tiene notificaciones no leídas
       const order = orders.find((o) => o.id === orderId)
       if (order?.unreadUpdates && order.unreadUpdates > 0) {
-        await markNotificationsAsRead([orderId])
+        // Aquí deberíamos implementar la lógica para marcar notificaciones como leídas en Supabase
+        console.log(`Marcando notificaciones como leídas para la orden ${orderId}`)
       }
     } catch (error) {
       console.error("Error al marcar notificaciones como leídas:", error)
@@ -325,6 +683,7 @@ export function TradingOrdersTable({ orders, traders, availableActions, readOnly
     }
   }
 
+  // Añadir columna para el número de cuenta del cliente
   const columns: ColumnDef<Order>[] = [
     {
       id: "select",
@@ -382,6 +741,12 @@ export function TradingOrdersTable({ orders, traders, availableActions, readOnly
       enableColumnFilter: true,
     },
     {
+      accessorKey: "clientAccount",
+      header: "Cuenta",
+      cell: ({ row }) => <div>{row.original.clientAccount || "-"}</div>,
+      enableColumnFilter: true,
+    },
+    {
       accessorKey: "ticker",
       header: "Ticker",
       cell: ({ row }) => <div className="font-medium">{row.getValue("ticker")}</div>,
@@ -420,11 +785,35 @@ export function TradingOrdersTable({ orders, traders, availableActions, readOnly
       accessorKey: "price",
       header: "Precio",
       cell: ({ row }) => {
+        const order = row.original
         const amount = Number.parseFloat(row.getValue("price"))
         const formatted = new Intl.NumberFormat("es-AR", {
           style: "currency",
           currency: "ARS",
         }).format(amount)
+
+        // Si hay bandas de precio, mostrarlas en formato min/max
+        if (order.minPrice !== undefined && order.maxPrice !== undefined) {
+          const minFormatted = new Intl.NumberFormat("es-AR", {
+            style: "currency",
+            currency: "ARS",
+          }).format(order.minPrice)
+
+          const maxFormatted = new Intl.NumberFormat("es-AR", {
+            style: "currency",
+            currency: "ARS",
+          }).format(order.maxPrice)
+
+          return (
+            <div className="text-right font-medium">
+              {formatted}
+              <div className="text-xs text-muted-foreground mt-1">
+                {minFormatted}/{maxFormatted}
+              </div>
+            </div>
+          )
+        }
+
         return <div className="text-right font-medium">{formatted}</div>
       },
       enableColumnFilter: true,
@@ -471,6 +860,15 @@ export function TradingOrdersTable({ orders, traders, availableActions, readOnly
         }
 
         return <Badge variant={variant as any}>{status}</Badge>
+      },
+      enableColumnFilter: true,
+    },
+    {
+      accessorKey: "mercado",
+      header: "Mercado",
+      cell: ({ row }) => {
+        const mercado = row.getValue("mercado") as string | undefined
+        return <div>{mercado || "-"}</div>
       },
       enableColumnFilter: true,
     },
@@ -633,6 +1031,18 @@ export function TradingOrdersTable({ orders, traders, availableActions, readOnly
 
   // Contar filtros activos
   const activeFilterCount = Object.keys(activeFilters).length
+
+  // Renderizado condicional para el estado de carga inicial
+  if (loading && !initialLoadDone) {
+    return (
+      <div className="w-full flex items-center justify-center py-8">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-2 text-sm text-muted-foreground">Cargando órdenes...</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="w-full space-y-4">
@@ -800,6 +1210,14 @@ export function TradingOrdersTable({ orders, traders, availableActions, readOnly
         </div>
       </div>
 
+      {/* Indicador de carga para actualizaciones */}
+      {loading && initialLoadDone && (
+        <div className="flex items-center justify-center py-2">
+          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+          <span className="ml-2 text-xs text-muted-foreground">Actualizando...</span>
+        </div>
+      )}
+
       <div className="rounded-md border">
         <Table>
           <TableHeader>
@@ -893,4 +1311,3 @@ export function TradingOrdersTable({ orders, traders, availableActions, readOnly
     </div>
   )
 }
-

@@ -23,6 +23,8 @@ import {
   ArrowRightLeft,
   Filter,
   X,
+  Search,
+  RefreshCw,
 } from "lucide-react"
 import Link from "next/link"
 
@@ -42,6 +44,7 @@ import { Badge } from "@/components/ui/badge"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Card, CardContent } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import type { Order } from "@/lib/types"
 import { updateOrderStatus, markNotificationsAsRead } from "@/lib/actions"
 import { toast } from "@/hooks/use-toast"
@@ -54,6 +57,19 @@ export function OrdersTable({ orders }: { orders: Order[] }) {
   const [rowSelection, setRowSelection] = useState({})
   const [isUpdating, setIsUpdating] = useState<string | null>(null)
   const [activeFilters, setActiveFilters] = useState<Record<string, boolean>>({})
+  const [isRefreshing, setIsRefreshing] = useState(false)
+
+  // Función para simular una actualización de datos
+  const refreshData = () => {
+    setIsRefreshing(true)
+    setTimeout(() => {
+      setIsRefreshing(false)
+      toast({
+        title: "Datos actualizados",
+        description: "La tabla de órdenes ha sido actualizada.",
+      })
+    }, 1000)
+  }
 
   const handleStatusUpdate = async (id: string, status: string) => {
     try {
@@ -160,7 +176,24 @@ export function OrdersTable({ orders }: { orders: Order[] }) {
           </Button>
         )
       },
-      cell: ({ row }) => <div>{row.getValue("client")}</div>,
+      cell: ({ row }) => {
+        const order = row.original
+        const clientName = row.getValue("client") as string
+        const accountNumber = order.client?.accountNumber || order.accountNumber || "" // Eliminar el valor predeterminado "5003"
+
+        return (
+          <div className="font-medium">{clientName ? `${clientName} ${accountNumber}` : "Cliente no especificado"}</div>
+        )
+      },
+    },
+    {
+      accessorKey: "clientId",
+      header: "Cuenta",
+      cell: ({ row }) => {
+        const order = row.original
+        // Mostrar solo el número de cuenta
+        return order.client?.accountNumber || order.accountNumber || ""
+      },
     },
     {
       accessorKey: "ticker",
@@ -174,24 +207,18 @@ export function OrdersTable({ orders }: { orders: Order[] }) {
     },
     {
       accessorKey: "type",
-      header: ({ column }) => {
-        return (
-          <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
-            Tipo de Operación
-            <ArrowUpDown className="ml-2 h-4 w-4" />
-          </Button>
-        )
-      },
+      header: "Tipo",
       cell: ({ row }) => {
         const order = row.original
-        const type = order.type as string
 
-        return (
-          <div className="flex items-center gap-2">
-            <Badge variant={type === "Compra" ? "default" : "destructive"}>{type}</Badge>
-            {order.isSwap && <Badge variant="outline">Swap {order.swapType === "buy" ? "(Compra)" : "(Venta)"}</Badge>}
-          </div>
-        )
+        // Mostrar directamente el tipo seleccionado por el usuario
+        // Sin procesamiento adicional
+        const displayType = order.type || "Desconocido"
+
+        // Determinar si es compra para aplicar el estilo correcto
+        const isCompra = displayType.toLowerCase().includes("compra")
+
+        return <div className={isCompra ? "text-green-600 font-medium" : "text-red-600 font-medium"}>{displayType}</div>
       },
     },
     {
@@ -203,11 +230,35 @@ export function OrdersTable({ orders }: { orders: Order[] }) {
       accessorKey: "price",
       header: "Precio",
       cell: ({ row }) => {
+        const order = row.original
         const amount = Number.parseFloat(row.getValue("price"))
         const formatted = new Intl.NumberFormat("es-AR", {
           style: "currency",
           currency: "ARS",
         }).format(amount)
+
+        // Si hay bandas de precio, mostrarlas en formato min/max
+        if (order.minPrice !== undefined && order.maxPrice !== undefined) {
+          const minFormatted = new Intl.NumberFormat("es-AR", {
+            style: "currency",
+            currency: "ARS",
+          }).format(order.minPrice)
+
+          const maxFormatted = new Intl.NumberFormat("es-AR", {
+            style: "currency",
+            currency: "ARS",
+          }).format(order.maxPrice)
+
+          return (
+            <div className="text-right font-medium">
+              {formatted}
+              <div className="text-xs text-muted-foreground mt-1">
+                {minFormatted}/{maxFormatted}
+              </div>
+            </div>
+          )
+        }
+
         return <div className="text-right font-medium">{formatted}</div>
       },
     },
@@ -255,6 +306,14 @@ export function OrdersTable({ orders }: { orders: Order[] }) {
         }
 
         return <Badge variant={variant as any}>{status}</Badge>
+      },
+    },
+    {
+      accessorKey: "mercado",
+      header: "Mercado",
+      cell: ({ row }) => {
+        const mercado = row.getValue("mercado") as string | undefined
+        return <div>{mercado || "-"}</div>
       },
     },
     {
@@ -335,7 +394,7 @@ export function OrdersTable({ orders }: { orders: Order[] }) {
   ]
 
   const table = useReactTable({
-    data: orders,
+    data: orders, // Usar directamente las órdenes sin procesar
     columns,
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
@@ -463,92 +522,156 @@ export function OrdersTable({ orders }: { orders: Order[] }) {
           )}
         </div>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="ml-auto h-8">
-              Columnas <ChevronDown className="ml-2 h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            {table
-              .getAllColumns()
-              .filter((column) => column.getCanHide())
-              .map((column) => {
-                return (
-                  <DropdownMenuCheckboxItem
-                    key={column.id}
-                    className="capitalize"
-                    checked={column.getIsVisible()}
-                    onCheckedChange={(value) => column.toggleVisibility(!!value)}
-                  >
-                    {column.id}
-                  </DropdownMenuCheckboxItem>
-                )
-              })}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => (
-                  <TableHead key={header.id}>
-                    {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
-                  </TableHead>
-                ))}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {table.getRowModel().rows?.length ? (
-              table.getRowModel().rows.map((row) => {
-                const order = row.original
-                return (
-                  <TableRow
-                    key={row.id}
-                    data-state={row.getIsSelected() && "selected"}
-                    onClick={() => markOrderNotificationsAsRead(order.id)}
-                    className={order.unreadUpdates && order.unreadUpdates > 0 ? "cursor-pointer hover:bg-muted/50" : ""}
-                  >
-                    {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>
-                    ))}
-                  </TableRow>
-                )
-              })
-            ) : (
-              <TableRow>
-                <TableCell colSpan={columns.length} className="h-24 text-center">
-                  No hay resultados.
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
-
-      <div className="flex items-center justify-end space-x-2 py-4">
-        <div className="flex-1 text-sm text-muted-foreground">
-          {table.getFilteredRowModel().rows.length} de {orders.length} fila(s)
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              type="search"
+              placeholder="Buscar órdenes..."
+              className="pl-8 w-[200px] md:w-[300px]"
+              value={(table.getColumn("client")?.getFilterValue() as string) ?? ""}
+              onChange={(e) => {
+                table.getColumn("client")?.setFilterValue(e.target.value)
+                updateActiveFilters("client", e.target.value)
+              }}
+            />
+          </div>
+          <Button variant="outline" size="sm" className="h-9 px-3" onClick={refreshData} disabled={isRefreshing}>
+            <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? "animate-spin" : ""}`} />
+            Actualizar
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="h-9 px-3">
+                Columnas <ChevronDown className="ml-2 h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {table
+                .getAllColumns()
+                .filter((column) => column.getCanHide())
+                .map((column) => {
+                  return (
+                    <DropdownMenuCheckboxItem
+                      key={column.id}
+                      className="capitalize"
+                      checked={column.getIsVisible()}
+                      onCheckedChange={(value) => column.toggleVisibility(!!value)}
+                    >
+                      {column.id}
+                    </DropdownMenuCheckboxItem>
+                  )
+                })}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
-        <div className="space-x-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => table.previousPage()}
-            disabled={!table.getCanPreviousPage()}
-          >
-            Anterior
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => table.nextPage()} disabled={!table.getCanNextPage()}>
-            Siguiente
-          </Button>
+      </div>
+
+      <div className="bg-white dark:bg-gray-950 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 overflow-hidden">
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader className="bg-gray-50 dark:bg-gray-900">
+              {table.getHeaderGroups().map((headerGroup) => (
+                <TableRow
+                  key={headerGroup.id}
+                  className="hover:bg-gray-100 dark:hover:bg-gray-800 border-b border-gray-200 dark:border-gray-800"
+                >
+                  {headerGroup.headers.map((header) => (
+                    <TableHead key={header.id} className="py-3 px-4 text-gray-700 dark:text-gray-300 font-medium">
+                      {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
+                    </TableHead>
+                  ))}
+                </TableRow>
+              ))}
+            </TableHeader>
+            <TableBody>
+              {table.getRowModel().rows?.length ? (
+                table.getRowModel().rows.map((row) => {
+                  const order = row.original
+                  return (
+                    <TableRow
+                      key={row.id}
+                      data-state={row.getIsSelected() && "selected"}
+                      onClick={() => markOrderNotificationsAsRead(order.id)}
+                      className={`
+                        border-b border-gray-100 dark:border-gray-800 
+                        ${
+                          order.unreadUpdates && order.unreadUpdates > 0
+                            ? "cursor-pointer bg-blue-50 dark:bg-blue-950 hover:bg-blue-100 dark:hover:bg-blue-900"
+                            : "hover:bg-gray-50 dark:hover:bg-gray-900"
+                        }
+                      `}
+                    >
+                      {row.getVisibleCells().map((cell) => (
+                        <TableCell key={cell.id} className="py-3 px-4">
+                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  )
+                })
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={columns.length} className="h-24 text-center text-gray-500 dark:text-gray-400">
+                    No hay resultados.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
+
+        <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950">
+          <div className="flex-1 text-sm text-gray-500 dark:text-gray-400">
+            {table.getFilteredRowModel().rows.length} de {orders.length} fila(s)
+          </div>
+          <div className="flex items-center space-x-6">
+            <div className="flex items-center space-x-2">
+              <span className="text-sm text-gray-700 dark:text-gray-300">Filas por página</span>
+              <Select
+                value={`${table.getState().pagination.pageSize}`}
+                onValueChange={(value) => {
+                  table.setPageSize(Number(value))
+                }}
+              >
+                <SelectTrigger className="h-8 w-[70px]">
+                  <SelectValue placeholder={table.getState().pagination.pageSize} />
+                </SelectTrigger>
+                <SelectContent side="top">
+                  {[10, 20, 30, 40, 50].map((pageSize) => (
+                    <SelectItem key={pageSize} value={`${pageSize}`}>
+                      {pageSize}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => table.previousPage()}
+                disabled={!table.getCanPreviousPage()}
+                className="h-8 px-3"
+              >
+                Anterior
+              </Button>
+              <div className="flex items-center justify-center text-sm font-medium">
+                Página {table.getState().pagination.pageIndex + 1} de {table.getPageCount()}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => table.nextPage()}
+                disabled={!table.getCanNextPage()}
+                className="h-8 px-3"
+              >
+                Siguiente
+              </Button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
   )
 }
-

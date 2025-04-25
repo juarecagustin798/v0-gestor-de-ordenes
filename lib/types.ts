@@ -19,7 +19,7 @@ export interface Order {
   quantity: number
   price: number
   total: number
-  status: "Pendiente" | "Tomada" | "Ejecutada" | "Ejecutada parcial" | "Cancelada" | "Revisar"
+  status: string //"Pendiente" | "Tomada" | "Ejecutada" | "Ejecutada parcial" | "Cancelada" | "Revisar"
   createdAt: Date
   updatedAt: Date
   notes: string
@@ -52,14 +52,34 @@ export interface Order {
 
 export interface Client {
   id: string
-  name: string
-  email: string
-  phone: string
-  documentType: string
-  documentNumber: string
-  address: string
-  accountNumber: string
-  commercialId: string
+  // Campos originales que podrían seguir siendo útiles
+  name?: string
+  documentType?: string
+  documentNumber?: string
+  accountNumber?: string
+  email?: string
+  phone?: string
+  address?: string
+  commercialId?: string
+
+  // Nuevos campos según las columnas del archivo
+  idCliente?: string
+  tipoCuenta?: string
+  estado?: string
+  denominacion?: string
+  cuentaEspecial?: string
+  alias?: string
+  titular?: string
+  tipoTitular?: string
+  cartera?: string
+  categoria?: string
+  administrador?: string
+  operador?: string
+  sucursal?: string
+  claseCuenta?: string
+  cuit?: string
+  ganancias?: string
+  iva?: string
 }
 
 export interface Asset {
@@ -72,6 +92,7 @@ export interface Asset {
   lastPrice: number
   change: number
   volume: number
+  maturityDate?: string // Añadir este campo opcional
 }
 
 export interface User {
@@ -111,3 +132,11 @@ export interface OrderFormValues {
   notes: string
 }
 
+export enum OrderStatus {
+  PENDING = "Pendiente",
+  TAKEN = "Tomada",
+  EXECUTED = "Ejecutada",
+  PARTIALLY_EXECUTED = "Ejecutada parcial",
+  CANCELLED = "Cancelada",
+  REVIEW = "Revisar",
+}

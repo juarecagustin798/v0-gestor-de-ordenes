@@ -15,6 +15,8 @@ import { ClientSelect } from "../selectors/client-select"
 import { AssetSelect } from "../selectors/asset-select"
 import { Plus, Trash2 } from "lucide-react"
 import type { Client, Asset } from "@/lib/types"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { InfoIcon } from "lucide-react"
 
 interface BulkOrderFormProps {
   form: UseFormReturn<OrderFormValues>
@@ -22,9 +24,19 @@ interface BulkOrderFormProps {
   assets: Asset[]
   onSubmit: (values: OrderFormValues) => void
   isSubmitting: boolean
+  isMultiClientMode?: boolean
+  selectedClientIds?: string[]
 }
 
-export function BulkOrderForm({ form, clients, assets, onSubmit, isSubmitting }: BulkOrderFormProps) {
+export function BulkOrderForm({
+  form,
+  clients,
+  assets,
+  onSubmit,
+  isSubmitting,
+  isMultiClientMode = false,
+  selectedClientIds = [],
+}: BulkOrderFormProps) {
   // Asegurarse de que el modo esté configurado correctamente
   useEffect(() => {
     form.setValue("mode", "bulk")
@@ -90,18 +102,20 @@ export function BulkOrderForm({ form, clients, assets, onSubmit, isSubmitting }:
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 pt-4">
-        <FormField
-          control={form.control}
-          name="data.clientId"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Cliente</FormLabel>
-              <ClientSelect clients={clients} value={field.value} onChange={field.onChange} />
-              <FormDescription>Selecciona el cliente para el cual deseas crear las órdenes.</FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        {!isMultiClientMode && (
+          <FormField
+            control={form.control}
+            name="data.clientId"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Cliente</FormLabel>
+                <ClientSelect clients={clients} value={field.value} onChange={field.onChange} />
+                <FormDescription>Selecciona el cliente para el cual deseas crear las órdenes.</FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
 
         <Separator className="my-4" />
 
@@ -339,6 +353,16 @@ export function BulkOrderForm({ form, clients, assets, onSubmit, isSubmitting }:
           ))}
         </div>
 
+        {isMultiClientMode && (
+          <Alert variant="info" className="bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-900">
+            <InfoIcon className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+            <AlertDescription>
+              En modo multi cuentas, estas órdenes se crearán para todos los clientes seleccionados. Puedes ajustar la
+              cantidad o monto individualmente para cada cliente haciendo clic en "Ajustar detalles por cliente".
+            </AlertDescription>
+          </Alert>
+        )}
+
         <FormField
           control={form.control}
           name="data.notes"
@@ -359,12 +383,11 @@ export function BulkOrderForm({ form, clients, assets, onSubmit, isSubmitting }:
         />
 
         <div className="flex justify-end">
-          <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? "Creando órdenes..." : "Crear Órdenes"}
+          <Button type="submit" disabled={isSubmitting || (isMultiClientMode && selectedClientIds.length === 0)}>
+            {isSubmitting ? "Creando órdenes..." : isMultiClientMode ? "Crear órdenes" : "Crear órdenes"}
           </Button>
         </div>
       </form>
     </Form>
   )
 }
-

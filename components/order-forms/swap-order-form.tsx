@@ -13,8 +13,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { type OrderFormValues, PlazoEnum, MercadoEnum } from "@/lib/types-order-form"
 import { ClientSelect } from "../selectors/client-select"
 import { AssetSelect } from "../selectors/asset-select"
-import { ArrowDownUp } from "lucide-react"
+import { ArrowDownUp, InfoIcon } from "lucide-react"
 import type { Client, Asset } from "@/lib/types"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 
 interface SwapOrderFormProps {
   form: UseFormReturn<OrderFormValues>
@@ -22,9 +23,19 @@ interface SwapOrderFormProps {
   assets: Asset[]
   onSubmit: (values: OrderFormValues) => void
   isSubmitting: boolean
+  isMultiClientMode?: boolean
+  selectedClientIds?: string[]
 }
 
-export function SwapOrderForm({ form, clients, assets, onSubmit, isSubmitting }: SwapOrderFormProps) {
+export function SwapOrderForm({
+  form,
+  clients,
+  assets,
+  onSubmit,
+  isSubmitting,
+  isMultiClientMode = false,
+  selectedClientIds = [],
+}: SwapOrderFormProps) {
   // Asegurarse de que el modo esté configurado correctamente
   useEffect(() => {
     form.setValue("mode", "swap")
@@ -118,18 +129,20 @@ export function SwapOrderForm({ form, clients, assets, onSubmit, isSubmitting }:
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 pt-4">
-        <FormField
-          control={form.control}
-          name="data.clientId"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Cliente</FormLabel>
-              <ClientSelect clients={clients} value={field.value} onChange={field.onChange} />
-              <FormDescription>Selecciona el cliente para el cual deseas crear el swap.</FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        {!isMultiClientMode && (
+          <FormField
+            control={form.control}
+            name="data.clientId"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Cliente</FormLabel>
+                <ClientSelect clients={clients} value={field.value} onChange={field.onChange} />
+                <FormDescription>Selecciona el cliente para el cual deseas crear el swap.</FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
 
         <Separator className="my-4" />
 
@@ -537,6 +550,17 @@ export function SwapOrderForm({ form, clients, assets, onSubmit, isSubmitting }:
           </CardContent>
         </Card>
 
+        {isMultiClientMode && (
+          <Alert variant="info" className="bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-900">
+            <InfoIcon className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+            <AlertDescription>
+              En modo multi cuentas, esta operación de swap se creará para todos los clientes seleccionados. Puedes
+              ajustar la cantidad o monto individualmente para cada cliente haciendo clic en "Ajustar detalles por
+              cliente".
+            </AlertDescription>
+          </Alert>
+        )}
+
         <FormField
           control={form.control}
           name="data.notes"
@@ -557,12 +581,11 @@ export function SwapOrderForm({ form, clients, assets, onSubmit, isSubmitting }:
         />
 
         <div className="flex justify-end">
-          <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? "Creando swap..." : "Crear Swap"}
+          <Button type="submit" disabled={isSubmitting || (isMultiClientMode && selectedClientIds.length === 0)}>
+            {isSubmitting ? "Creando swap..." : isMultiClientMode ? "Crear swaps" : "Crear swap"}
           </Button>
         </div>
       </form>
     </Form>
   )
 }
-

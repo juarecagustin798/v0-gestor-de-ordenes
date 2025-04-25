@@ -12,4 +12,3 @@ export function SiteFooter({ className }: React.HTMLAttributes<HTMLElement>) {
     </footer>
   )
 }
-

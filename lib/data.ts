@@ -1,283 +1,225 @@
+"use client"
+
 import type { Order, Client, Asset, User, Observation } from "./types"
+import { getClientById as getClientByIdFromDB } from "@/lib/services/db-service"
 
-// Modificar algunas órdenes de ejemplo para incluir notificaciones no leídas
-export const mockOrders: Order[] = [
-  {
-    id: "ORD-001",
-    clientId: "CLI-001",
-    client: "Carlos Rodríguez",
-    assetId: "GGAL",
-    asset: "Grupo Financiero Galicia",
-    ticker: "GGAL",
-    type: "Compra",
-    quantity: 100,
-    price: 1500,
-    total: 150000,
-    status: "Pendiente",
-    createdAt: new Date(2023, 10, 15),
-    updatedAt: new Date(2023, 10, 15),
-    notes: "",
-    commercialId: "COM-001",
-    commercial: "Juan Pérez",
-    observations: [],
-    unreadUpdates: 0, // Sin notificaciones
-  },
-  {
-    id: "ORD-002",
-    clientId: "CLI-002",
-    client: "María González",
-    assetId: "YPF",
-    asset: "YPF S.A.",
-    ticker: "YPF",
-    type: "Venta",
-    quantity: 50,
-    price: 2200,
-    total: 110000,
-    status: "Tomada",
-    createdAt: new Date(2023, 10, 14),
-    updatedAt: new Date(2023, 10, 16),
-    notes: "Cliente solicita ejecución rápida",
-    commercialId: "COM-001",
-    commercial: "Juan Pérez",
-    traderId: "TRA-001",
-    trader: "Martín Gómez",
-    observations: [
-      {
-        id: "OBS-001",
-        orderId: "ORD-002",
-        content: "Orden tomada, se ejecutará en la próxima rueda",
-        createdAt: new Date(2023, 10, 16, 10, 30),
-        userId: "TRA-001",
-        userName: "Martín Gómez",
-        userRole: "Mesa",
-      },
-    ],
-    unreadUpdates: 2, // 2 notificaciones no leídas
-    lastUpdateType: "status", // Tipo de la última actualización
-    unreadElements: {
-      status: true,
-      observations: ["OBS-001"],
-    },
-  },
-  {
-    id: "ORD-003",
-    clientId: "CLI-003",
-    client: "Luis Martínez",
-    assetId: "PAMP",
-    asset: "Pampa Energía",
-    ticker: "PAMP",
-    type: "Compra",
-    quantity: 200,
-    price: 800,
-    total: 160000,
-    status: "Ejecutada",
-    createdAt: new Date(2023, 10, 10),
-    updatedAt: new Date(2023, 10, 12),
-    notes: "",
-    commercialId: "COM-002",
-    commercial: "Ana López",
-    traderId: "TRA-002",
-    trader: "Laura Sánchez",
-    executedQuantity: 200,
-    executedPrice: 795,
-    observations: [
-      {
-        id: "OBS-002",
-        orderId: "ORD-003",
-        content: "Orden ejecutada a $795, mejor precio que el solicitado",
-        createdAt: new Date(2023, 10, 12, 14, 45),
-        userId: "TRA-002",
-        userName: "Laura Sánchez",
-        userRole: "Mesa",
-      },
-    ],
-  },
-  {
-    id: "ORD-004",
-    clientId: "CLI-004",
-    client: "Ana Fernández",
-    assetId: "TXAR",
-    asset: "Ternium Argentina",
-    ticker: "TXAR",
-    type: "Venta",
-    quantity: 75,
-    price: 1200,
-    total: 90000,
-    status: "Cancelada",
-    createdAt: new Date(2023, 10, 8),
-    updatedAt: new Date(2023, 10, 9),
-    notes: "Cancelada a pedido del cliente",
-    commercialId: "COM-002",
-    commercial: "Ana López",
-    traderId: "TRA-001",
-    trader: "Martín Gómez",
-    observations: [
-      {
-        id: "OBS-003",
-        orderId: "ORD-004",
-        content: "Orden cancelada a pedido del comercial",
-        createdAt: new Date(2023, 10, 9, 9, 15),
-        userId: "TRA-001",
-        userName: "Martín Gómez",
-        userRole: "Mesa",
-      },
-    ],
-  },
-  {
-    id: "ORD-005",
-    clientId: "CLI-001",
-    client: "Carlos Rodríguez",
-    assetId: "BBAR",
-    asset: "Banco BBVA Argentina",
-    ticker: "BBAR",
-    type: "Compra",
-    quantity: 150,
-    price: 950,
-    total: 142500,
-    status: "Revisar",
-    createdAt: new Date(2023, 10, 17),
-    updatedAt: new Date(2023, 10, 17),
-    notes: "",
-    commercialId: "COM-001",
-    commercial: "Juan Pérez",
-    traderId: "TRA-002",
-    trader: "Laura Sánchez",
-    observations: [
-      {
-        id: "OBS-004",
-        orderId: "ORD-005",
-        content: "Precio muy alejado del mercado, por favor confirmar con el cliente",
-        createdAt: new Date(2023, 10, 17, 11, 20),
-        userId: "TRA-002",
-        userName: "Laura Sánchez",
-        userRole: "Mesa",
-      },
-      {
-        id: "OBS-005",
-        orderId: "ORD-005",
-        content: "Cliente confirma el precio, proceder con la ejecución",
-        createdAt: new Date(2023, 10, 17, 14, 10),
-        userId: "COM-001",
-        userName: "Juan Pérez",
-        userRole: "Comercial",
-      },
-    ],
-  },
-  {
-    id: "ORD-006",
-    clientId: "CLI-005",
-    client: "Roberto Sánchez",
-    assetId: "CEPU",
-    asset: "Central Puerto",
-    ticker: "CEPU",
-    type: "Compra",
-    quantity: 300,
-    price: 1100,
-    total: 330000,
-    status: "Ejecutada parcial",
-    createdAt: new Date(2023, 10, 16),
-    updatedAt: new Date(2023, 10, 18),
-    notes: "",
-    commercialId: "COM-001",
-    commercial: "Juan Pérez",
-    traderId: "TRA-003",
-    trader: "Diego Fernández",
-    executedQuantity: 200,
-    executedPrice: 1105,
-    observations: [
-      {
-        id: "OBS-006",
-        orderId: "ORD-006",
-        content: "Ejecutado parcialmente 200 de 300 acciones. Continuaremos mañana con el resto.",
-        createdAt: new Date(2023, 10, 18, 16, 30),
-        userId: "TRA-003",
-        userName: "Diego Fernández",
-        userRole: "Mesa",
-      },
-    ],
-    unreadUpdates: 2,
-    lastUpdateType: "execution",
-    unreadElements: {
-      execution: true,
-      observations: ["OBS-006"],
-    },
-  },
-  {
-    id: "ORD-007",
-    clientId: "CLI-002",
-    client: "María González",
-    assetId: "SUPV",
-    asset: "Grupo Supervielle",
-    ticker: "SUPV",
-    type: "Venta",
-    quantity: 120,
-    price: 650,
-    total: 78000,
-    status: "Pendiente",
-    createdAt: new Date(2023, 10, 18),
-    updatedAt: new Date(2023, 10, 18),
-    notes: "",
-    commercialId: "COM-001",
-    commercial: "Juan Pérez",
-    observations: [],
-  },
-  {
-    id: "ORD-008",
-    clientId: "CLI-003",
-    client: "Luis Martínez",
-    assetId: "ALUA",
-    asset: "Aluar Aluminio Argentino",
-    ticker: "ALUA",
-    type: "Compra",
-    quantity: 250,
-    price: 780,
-    total: 195000,
-    status: "Pendiente",
-    createdAt: new Date(2023, 10, 18),
-    updatedAt: new Date(2023, 10, 18),
-    notes: "Cliente solicita compra al cierre",
-    commercialId: "COM-002",
-    commercial: "Ana López",
-    observations: [],
-  },
-]
+// Función para cargar órdenes desde localStorage
+function loadOrdersFromStorage(): Order[] {
+  if (typeof window !== "undefined") {
+    try {
+      const storedOrders = localStorage.getItem("mockOrders")
+      if (storedOrders) {
+        const parsedOrders = JSON.parse(storedOrders)
+        console.log("Órdenes cargadas desde localStorage:", parsedOrders.length)
+        return parsedOrders.map((order: any) => ({
+          ...order,
+          createdAt: new Date(order.createdAt),
+          updatedAt: new Date(order.updatedAt),
+          observations: order.observations.map((obs: any) => ({
+            ...obs,
+            createdAt: new Date(obs.createdAt),
+          })),
+        }))
+      }
+    } catch (e) {
+      console.error("Error al cargar órdenes desde localStorage:", e)
+    }
+  }
+  return []
+}
 
-// Función para crear una nueva orden en los datos de ejemplo
-export function createMockOrder(orderData: Partial<Order>): Order {
-  // Generar un ID único para la nueva orden
-  const newId = `ORD-${String(mockOrders.length + 1).padStart(3, "0")}`
+// Modificar la función loadClientsFromStorage para mejorar el logging
+function loadClientsFromStorage(): Client[] {
+  if (typeof window !== "undefined") {
+    try {
+      const storedClients = localStorage.getItem("mockClients")
+      if (storedClients) {
+        const parsedClients = JSON.parse(storedClients)
+        console.log("Clientes cargados desde localStorage:", parsedClients.length)
+        console.log("Muestra de clientes:", parsedClients.slice(0, 3))
+        return parsedClients
+      } else {
+        console.log("No se encontraron clientes en localStorage")
+      }
+    } catch (e) {
+      console.error("Error al cargar clientes desde localStorage:", e)
+    }
+  }
+  return []
+}
 
-  // Crear la nueva orden con valores predeterminados y los datos proporcionados
-  const newOrder: Order = {
-    id: newId,
-    clientId: "",
-    client: "",
-    assetId: "",
-    asset: "",
-    ticker: "",
-    type: "Compra",
-    quantity: 0,
-    price: 0,
-    total: 0,
-    status: "Pendiente",
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    notes: "",
-    commercialId: "",
-    commercial: "",
-    observations: [],
-    ...orderData,
-    // Calcular el total si no se proporciona
-    total: orderData.total || (orderData.quantity && orderData.price ? orderData.quantity * orderData.price : 0),
+// Update the mockOrders initialization to load from localStorage
+// Replace the existing mockOrders declaration with this:
+export const mockOrders: Order[] = []
+
+// Load orders from localStorage when initializing
+if (typeof window !== "undefined") {
+  const storedOrders = loadOrdersFromStorage()
+  if (storedOrders.length > 0) {
+    mockOrders.push(...storedOrders)
+  }
+}
+
+// Inicializar mockClients con los datos de localStorage si están disponibles
+export const mockClients: Client[] = []
+
+// Cargar clientes desde localStorage al inicializar
+if (typeof window !== "undefined") {
+  const storedClients = loadClientsFromStorage()
+  if (storedClients.length > 0) {
+    // Si hay clientes en localStorage, usarlos y NO cargar ejemplos
+    mockClients.push(...storedClients)
+    console.log("Usando SOLO los clientes importados:", mockClients.length)
+  } else {
+    // SOLO si no hay clientes en localStorage, agregar algunos clientes de ejemplo
+    console.log("No hay clientes importados, usando ejemplos")
+    mockClients.push(
+      {
+        id: "5001",
+        name: "Cliente Ejemplo 1",
+        email: "cliente1@ejemplo.com",
+        phone: "123-456-7890",
+        documentType: "DNI",
+        documentNumber: "12345678",
+        address: "Calle Ejemplo 123",
+        accountNumber: "ACC-001",
+        commercialId: "COM-001",
+      },
+      {
+        id: "5002",
+        name: "Cliente Ejemplo 2",
+        email: "cliente2@ejemplo.com",
+        phone: "123-456-7891",
+        documentType: "DNI",
+        documentNumber: "87654321",
+        address: "Calle Ejemplo 124",
+        accountNumber: "ACC-002",
+        commercialId: "COM-001",
+      },
+      {
+        id: "5003",
+        name: "Cliente Ejemplo 3",
+        email: "cliente3@ejemplo.com",
+        phone: "123-456-7892",
+        documentType: "DNI",
+        documentNumber: "45678912",
+        address: "Calle Ejemplo 125",
+        accountNumber: "ACC-003",
+        commercialId: "COM-001",
+      },
+    )
+
+    // Guardar los clientes de ejemplo en localStorage
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem("mockClients", JSON.stringify(mockClients))
+        console.log("Clientes de ejemplo guardados en localStorage")
+      } catch (e) {
+        console.error("Error al guardar clientes en localStorage:", e)
+      }
+    }
+  }
+}
+
+// Función para obtener clientes con caché
+let clientsCache: Client[] | null = null
+let clientsLastFetch = 0
+const CACHE_DURATION = 5 * 60 * 1000 // 5 minutos
+
+export async function getClients(): Promise<Client[]> {
+  // Si tenemos datos en caché y son recientes, los devolvemos
+  if (clientsCache && Date.now() - clientsLastFetch < CACHE_DURATION) {
+    return clientsCache
   }
 
-  // Añadir la nueva orden al array de órdenes
+  try {
+    // Intentamos obtener los clientes del localStorage
+    const clientsData = localStorage.getItem("clients")
+
+    if (clientsData) {
+      const clients = JSON.parse(clientsData) as Client[]
+
+      // Actualizamos la caché
+      clientsCache = clients
+      clientsLastFetch = Date.now()
+
+      return clients
+    }
+
+    return []
+  } catch (error) {
+    console.error("Error al obtener clientes:", error)
+    return []
+  }
+}
+
+// Lista de activos financieros (vacía para que puedas cargar tus propios activos)
+export const mockAssets: Asset[] = []
+
+// Comerciales (vacío para que puedas cargar tus propios comerciales)
+export const mockCommercials = []
+
+// Traders (Mesa de Trading) (vacío para que puedas cargar tus propios traders)
+export const mockTraders: User[] = []
+
+// Función para crear una nueva orden en los datos
+export function createMockOrder(orderData: Partial<Order>): Order {
+  const id = `ORD-${Date.now()}-${Math.floor(Math.random() * 1000)}`
+
+  const newOrder: Order = {
+    id,
+    clientId: orderData.clientId || "",
+    client: orderData.client || "",
+    assetId: orderData.assetId || "",
+    asset: orderData.asset || "",
+    ticker: orderData.ticker || "",
+    type: orderData.type || "Compra",
+    quantity: orderData.quantity || 0,
+    price: orderData.price || 0,
+    total: orderData.total || 0,
+    status: orderData.status || "Pendiente",
+    notes: orderData.notes || "",
+    commercialId: orderData.commercialId || "",
+    commercial: orderData.commercial || "",
+    observations: orderData.observations || [],
+    unreadUpdates: orderData.unreadUpdates || 0,
+    lastUpdateType: orderData.lastUpdateType,
+    unreadElements: orderData.unreadElements,
+    createdAt: orderData.createdAt || new Date(),
+    updatedAt: orderData.updatedAt || new Date(),
+    traderId: orderData.traderId,
+    trader: orderData.trader,
+    executedQuantity: orderData.executedQuantity,
+    executedPrice: orderData.executedPrice,
+    plazo: orderData.plazo,
+    mercado: orderData.mercado,
+    priceType: orderData.priceType,
+    minPrice: orderData.minPrice,
+    maxPrice: orderData.maxPrice,
+    isMarketOrder: orderData.isMarketOrder || false,
+    isSwap: orderData.isSwap || false,
+    swapId: orderData.swapId,
+    swapType: orderData.swapType,
+    relatedOrderId: orderData.relatedOrderId,
+  }
+
+  // Add to mockOrders array
   mockOrders.push(newOrder)
+
+  // Store in localStorage
+  if (typeof window !== "undefined") {
+    try {
+      localStorage.setItem("mockOrders", JSON.stringify(mockOrders))
+      console.log("Order saved to localStorage, total orders:", mockOrders.length)
+    } catch (e) {
+      console.warn("Could not save to localStorage:", e)
+    }
+  }
 
   return newOrder
 }
 
-// Función para actualizar una orden en los datos de ejemplo
+// Función para actualizar una orden en los datos
 export function updateMockOrder(orderId: string, updates: Partial<Order>): Order | null {
   const orderIndex = mockOrders.findIndex((order) => order.id === orderId)
 
@@ -294,6 +236,15 @@ export function updateMockOrder(orderId: string, updates: Partial<Order>): Order
 
   // Actualizar la orden en el array
   mockOrders[orderIndex] = updatedOrder
+
+  // Update in localStorage
+  if (typeof window !== "undefined") {
+    try {
+      localStorage.setItem("mockOrders", JSON.stringify(mockOrders))
+    } catch (e) {
+      console.warn("Could not save to localStorage:", e)
+    }
+  }
 
   return updatedOrder
 }
@@ -316,219 +267,17 @@ export function addMockObservation(orderId: string, observation: Omit<Observatio
   mockOrders[orderIndex].observations.push(newObservation)
   mockOrders[orderIndex].updatedAt = new Date()
 
+  // Update in localStorage
+  if (typeof window !== "undefined") {
+    try {
+      localStorage.setItem("mockOrders", JSON.stringify(mockOrders))
+    } catch (e) {
+      console.warn("Could not save to localStorage:", e)
+    }
+  }
+
   return newObservation
 }
-
-// Lista de clientes
-export const mockClients: Client[] = [
-  {
-    id: "CLI-001",
-    name: "Carlos Rodríguez",
-    email: "carlos.rodriguez@ejemplo.com",
-    phone: "11-1234-5678",
-    documentType: "DNI",
-    documentNumber: "25678901",
-    address: "Av. Corrientes 1234, CABA",
-    accountNumber: "ACC-001",
-    commercialId: "COM-001",
-  },
-  {
-    id: "CLI-002",
-    name: "María González",
-    email: "maria.gonzalez@ejemplo.com",
-    phone: "11-2345-6789",
-    documentType: "DNI",
-    documentNumber: "27890123",
-    address: "Av. Santa Fe 567, CABA",
-    accountNumber: "ACC-002",
-    commercialId: "COM-001",
-  },
-  {
-    id: "CLI-003",
-    name: "Luis Martínez",
-    email: "luis.martinez@ejemplo.com",
-    phone: "11-3456-7890",
-    documentType: "DNI",
-    documentNumber: "30123456",
-    address: "Av. Cabildo 890, CABA",
-    accountNumber: "ACC-003",
-    commercialId: "COM-002",
-  },
-  {
-    id: "CLI-004",
-    name: "Ana Fernández",
-    email: "ana.fernandez@ejemplo.com",
-    phone: "11-4567-8901",
-    documentType: "DNI",
-    documentNumber: "28901234",
-    address: "Av. Rivadavia 1234, CABA",
-    accountNumber: "ACC-004",
-    commercialId: "COM-002",
-  },
-  {
-    id: "CLI-005",
-    name: "Roberto Sánchez",
-    email: "roberto.sanchez@ejemplo.com",
-    phone: "11-5678-9012",
-    documentType: "DNI",
-    documentNumber: "26789012",
-    address: "Av. Belgrano 567, CABA",
-    accountNumber: "ACC-005",
-    commercialId: "COM-001",
-  },
-]
-
-// Lista de activos financieros
-export const mockAssets: Asset[] = [
-  {
-    id: "GGAL",
-    name: "Grupo Financiero Galicia",
-    ticker: "GGAL",
-    type: "Acción",
-    market: "BYMA",
-    currency: "ARS",
-    lastPrice: 1500,
-    change: 2.5,
-    volume: 1000000,
-  },
-  {
-    id: "YPF",
-    name: "YPF S.A.",
-    ticker: "YPF",
-    type: "Acción",
-    market: "BYMA",
-    currency: "ARS",
-    lastPrice: 2200,
-    change: -1.2,
-    volume: 1500000,
-  },
-  {
-    id: "PAMP",
-    name: "Pampa Energía",
-    ticker: "PAMP",
-    type: "Acción",
-    market: "BYMA",
-    currency: "ARS",
-    lastPrice: 800,
-    change: 0.8,
-    volume: 800000,
-  },
-  {
-    id: "TXAR",
-    name: "Ternium Argentina",
-    ticker: "TXAR",
-    type: "Acción",
-    market: "BYMA",
-    currency: "ARS",
-    lastPrice: 1200,
-    change: 1.5,
-    volume: 600000,
-  },
-  {
-    id: "BBAR",
-    name: "Banco BBVA Argentina",
-    ticker: "BBAR",
-    type: "Acción",
-    market: "BYMA",
-    currency: "ARS",
-    lastPrice: 950,
-    change: -0.5,
-    volume: 700000,
-  },
-  {
-    id: "CEPU",
-    name: "Central Puerto",
-    ticker: "CEPU",
-    type: "Acción",
-    market: "BYMA",
-    currency: "ARS",
-    lastPrice: 1100,
-    change: 3.2,
-    volume: 900000,
-  },
-  {
-    id: "SUPV",
-    name: "Grupo Supervielle",
-    ticker: "SUPV",
-    type: "Acción",
-    market: "BYMA",
-    currency: "ARS",
-    lastPrice: 650,
-    change: 1.8,
-    volume: 500000,
-  },
-  {
-    id: "ALUA",
-    name: "Aluar Aluminio Argentino",
-    ticker: "ALUA",
-    type: "Acción",
-    market: "BYMA",
-    currency: "ARS",
-    lastPrice: 780,
-    change: 0.3,
-    volume: 400000,
-  },
-  {
-    id: "TECO2",
-    name: "Telecom Argentina",
-    ticker: "TECO2",
-    type: "Acción",
-    market: "BYMA",
-    currency: "ARS",
-    lastPrice: 1050,
-    change: -0.7,
-    volume: 550000,
-  },
-  {
-    id: "TGSU2",
-    name: "Transportadora de Gas del Sur",
-    ticker: "TGSU2",
-    type: "Acción",
-    market: "BYMA",
-    currency: "ARS",
-    lastPrice: 920,
-    change: 1.1,
-    volume: 450000,
-  },
-]
-
-// Comerciales
-export const mockCommercials = [
-  {
-    id: "COM-001",
-    name: "Juan Pérez",
-    email: "juan.perez@ejemplo.com",
-    phone: "11-1111-1111",
-  },
-  {
-    id: "COM-002",
-    name: "Ana López",
-    email: "ana.lopez@ejemplo.com",
-    phone: "11-2222-2222",
-  },
-]
-
-// Traders (Mesa de Trading)
-export const mockTraders: User[] = [
-  {
-    id: "TRA-001",
-    name: "Martín Gómez",
-    email: "martin.gomez@ejemplo.com",
-    role: "Mesa",
-  },
-  {
-    id: "TRA-002",
-    name: "Laura Sánchez",
-    email: "laura.sanchez@ejemplo.com",
-    role: "Mesa",
-  },
-  {
-    id: "TRA-003",
-    name: "Diego Fernández",
-    email: "diego.fernandez@ejemplo.com",
-    role: "Mesa",
-  },
-]
 
 // Función para obtener todos los usuarios
 export async function getUsers(): Promise<User[]> {
@@ -562,8 +311,6 @@ export async function getOrders(): Promise<Order[]> {
     }, 500)
   })
 }
-
-// Modificar las funciones de obtención de órdenes para asegurar el filtrado correcto
 
 // Función para obtener órdenes pendientes (para la mesa de trading)
 export async function getPendingOrders(): Promise<Order[]> {
@@ -607,7 +354,7 @@ export async function getCompletedOrders(): Promise<Order[]> {
   })
 }
 
-// Nueva función para obtener órdenes canceladas
+// Función para obtener órdenes canceladas
 export async function getCanceledOrders(): Promise<Order[]> {
   // Simular una llamada a la API
   return new Promise((resolve) => {
@@ -618,9 +365,6 @@ export async function getCanceledOrders(): Promise<Order[]> {
   })
 }
 
-// Buscar la función getOrderById y asegurarse de que está devolviendo la orden correctamente
-// Modificar la función para que imprima el ID que está buscando y el resultado
-
 export async function getOrderById(id: string): Promise<Order | undefined> {
   console.log(`Buscando orden con ID: ${id}`)
 
@@ -630,7 +374,7 @@ export async function getOrderById(id: string): Promise<Order | undefined> {
     return undefined
   }
 
-  // Buscar la orden directamente en el array (sin Promise ni setTimeout)
+  // Buscar la orden directamente en el array
   const order = mockOrders.find((order) => order.id === id)
 
   // Registrar el resultado para depuración
@@ -640,42 +384,190 @@ export async function getOrderById(id: string): Promise<Order | undefined> {
   return order
 }
 
-export async function getClients(): Promise<Client[]> {
-  // Simular una llamada a la API
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve(mockClients)
-    }, 500)
-  })
+// Añadir esta función si no existe
+export async function getAllClients() {
+  try {
+    // En un entorno real, esto obtendría datos de una API o base de datos
+    // Para este ejemplo, devolvemos una lista de clientes de prueba
+    const mockClients = [
+      { id: "1", name: "Cliente 1", idCliente: "CLI001", accountNumber: "ACC001" },
+      { id: "2", name: "Cliente 2", idCliente: "CLI002", accountNumber: "ACC002" },
+      { id: "3", name: "Cliente 3", idCliente: "CLI003", accountNumber: "ACC003" },
+      { id: "4", name: "Cliente 4", idCliente: "CLI004", accountNumber: "ACC004" },
+      { id: "5", name: "Cliente 5", idCliente: "CLI005", accountNumber: "ACC005" },
+      // Añadir el cliente específico que está causando el error
+      {
+        id: "fc05c58b-a142-469c-becd-543d014e0911",
+        name: "Cliente Especial",
+        idCliente: "fc05c58b-a142-469c-becd-543d014e0911",
+        accountNumber: "ACC-ESPECIAL",
+      },
+    ]
+
+    // Intentar recuperar clientes del localStorage si estamos en el cliente
+    if (typeof window !== "undefined") {
+      try {
+        const storedClients = localStorage.getItem("mockClients")
+        if (storedClients) {
+          return JSON.parse(storedClients)
+        }
+      } catch (e) {
+        console.warn("No se pudo recuperar clientes del localStorage:", e)
+      }
+    }
+
+    return mockClients
+  } catch (error) {
+    console.error("Error al obtener todos los clientes:", error)
+    return []
+  }
 }
 
-export async function getClientById(id: string): Promise<Client | undefined> {
-  // Simular una llamada a la API
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      const client = mockClients.find((client) => client.id === id)
-      resolve(client)
-    }, 500)
-  })
+// Modificar la función getClientById para usar la función de la base de datos
+export async function getClientById(clientId: string) {
+  try {
+    if (!clientId) {
+      console.error("ID de cliente no proporcionado")
+      return null
+    }
+
+    console.log("Buscando cliente con ID:", clientId)
+
+    // Primero intentar obtener el cliente de la base de datos
+    const clientFromDB = await getClientByIdFromDB(clientId)
+    if (clientFromDB) {
+      console.log(
+        "Cliente encontrado en la base de datos:",
+        clientFromDB.denominacion || clientFromDB.titular || clientFromDB.name,
+      )
+      return clientFromDB
+    }
+
+    // Si no se encuentra en la base de datos, intentar en localStorage
+    if (typeof window !== "undefined") {
+      try {
+        const storedClients = localStorage.getItem("mockClients")
+        if (storedClients) {
+          const clients = JSON.parse(storedClients)
+          const client = clients.find(
+            (c: any) => c.id === clientId || c.idCliente === clientId || c.accountNumber === clientId,
+          )
+
+          if (client) {
+            console.log("Cliente encontrado en localStorage:", client.name || client.denominacion || client.titular)
+            return client
+          }
+        }
+      } catch (e) {
+        console.warn("Error al buscar cliente en localStorage:", e)
+      }
+    }
+
+    console.warn(`Cliente con ID ${clientId} no encontrado. Creando cliente temporal.`)
+
+    // Crear un cliente temporal para evitar errores
+    return {
+      id: clientId,
+      name: `Cliente ${clientId.substring(0, 8)}`,
+      idCliente: clientId,
+      accountNumber: clientId,
+    }
+  } catch (error) {
+    console.error(`Error al buscar cliente con ID ${clientId}:`, error)
+
+    // Crear un cliente temporal para evitar errores
+    return {
+      id: clientId,
+      name: `Cliente ${clientId.substring(0, 8)}`,
+      idCliente: clientId,
+      accountNumber: clientId,
+    }
+  }
 }
 
-export async function getAssets(): Promise<Asset[]> {
-  // Simular una llamada a la API
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve(mockAssets)
-    }, 500)
-  })
-}
-
+// Modificar solo la función getAssetById para hacerla más flexible
 export async function getAssetById(id: string): Promise<Asset | undefined> {
-  // Simular una llamada a la API
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      const asset = mockAssets.find((asset) => asset.id === id)
-      resolve(asset)
-    }, 500)
-  })
+  console.log(`Buscando activo con ID/ticker: ${id}`)
+
+  // Verificar que el ID no sea undefined o null
+  if (!id) {
+    console.error("ID/ticker de activo no válido:", id)
+    return undefined
+  }
+
+  // Primero, intentar cargar todos los activos disponibles, incluyendo los de localStorage
+  let allAssets = [...mockAssets]
+
+  // Intentar cargar activos adicionales desde localStorage
+  if (typeof window !== "undefined") {
+    try {
+      const storedAssets = localStorage.getItem("mockAssets")
+      if (storedAssets) {
+        const parsedAssets = JSON.parse(storedAssets)
+        console.log("Activos cargados desde localStorage en getAssetById:", parsedAssets.length)
+
+        // Añadir solo los activos que no están ya en mockAssets
+        const existingTickerSet = new Set(mockAssets.map((a) => a.ticker))
+        const newAssets = parsedAssets.filter((a) => !existingTickerSet.has(a.ticker))
+
+        if (newAssets.length > 0) {
+          console.log("Añadiendo nuevos activos desde localStorage en getAssetById:", newAssets.length)
+          allAssets = [...mockAssets, ...newAssets]
+        }
+      }
+    } catch (e) {
+      console.error("Error al cargar activos desde localStorage en getAssetById:", e)
+    }
+  }
+
+  // 1. Buscar coincidencia exacta en todos los activos disponibles
+  let asset = allAssets.find((a) => a.ticker === id || a.id === id)
+
+  // 2. Si no se encuentra, buscar por coincidencia normalizada
+  if (!asset) {
+    const normalizedSearchId = id.replace(/\s+/g, "").toLowerCase()
+    asset = allAssets.find((a) => {
+      const normalizedAssetTicker = a.ticker.replace(/\s+/g, "").toLowerCase()
+      return normalizedAssetTicker === normalizedSearchId
+    })
+  }
+
+  // 3. Si aún no se encuentra, buscar por ticker base
+  if (!asset) {
+    const baseTicker = id.split("-")[0].trim()
+    console.log("Buscando por ticker base en getAssetById:", baseTicker)
+
+    asset = allAssets.find((a) => a.ticker.startsWith(baseTicker))
+  }
+
+  // 4. Si aún no se encuentra, buscar por coincidencia parcial
+  if (!asset) {
+    const searchTerms = id.split(/[\s-]+/)
+    console.log("Buscando por términos en getAssetById:", searchTerms)
+
+    const possibleMatches = allAssets.filter((a) => {
+      return searchTerms.some((term) => a.ticker.toLowerCase().includes(term.toLowerCase()))
+    })
+
+    if (possibleMatches.length > 0) {
+      console.log(
+        "Posibles coincidencias en getAssetById:",
+        possibleMatches.map((a) => a.ticker),
+      )
+      possibleMatches.sort((a, b) => a.ticker.length - b.ticker.length)
+      asset = possibleMatches[0]
+    }
+  }
+
+  // Registrar el resultado para depuración
+  if (asset) {
+    console.log(`Activo encontrado: ${asset.name} con ticker ${asset.ticker}`)
+  } else {
+    console.log(`No se encontró ningún activo para ${id}`)
+  }
+
+  // Devolver el activo encontrado o undefined
+  return asset
 }
 
 export async function searchAssets(query: string): Promise<Asset[]> {
@@ -692,3 +584,40 @@ export async function searchAssets(query: string): Promise<Asset[]> {
   })
 }
 
+// Función para cargar activos desde localStorage
+function loadAssetsFromStorage(): Asset[] {
+  if (typeof window !== "undefined") {
+    try {
+      const storedAssets = localStorage.getItem("mockAssets")
+      if (storedAssets) {
+        const parsedAssets = JSON.parse(storedAssets)
+        console.log("Activos cargados desde localStorage:", parsedAssets.length)
+        return parsedAssets
+      } else {
+        console.log("No se encontraron activos en localStorage")
+      }
+    } catch (e) {
+      console.error("Error al cargar activos desde localStorage:", e)
+    }
+  }
+  return []
+}
+
+// Asegurarnos de que la función getAssets esté correctamente exportada
+export async function getAssets(): Promise<Asset[]> {
+  // Devolver directamente los activos en memoria si existen
+  if (mockAssets.length > 0) {
+    return mockAssets
+  }
+
+  // Si no hay activos en memoria, intentar cargar desde localStorage
+  const storedAssets = loadAssetsFromStorage()
+  if (storedAssets.length > 0) {
+    // Actualizar mockAssets para futuras consultas
+    mockAssets.push(...storedAssets)
+    return storedAssets
+  }
+
+  // Si no hay datos, devolver un array vacío
+  return []
+}

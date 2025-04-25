@@ -1,69 +1,38 @@
 import { z } from "zod"
 
-// Enums para las opciones de selección
-export const PriceTypeEnum = z.enum(["money", "yield"])
-export const PlazoEnum = z.enum(["CI", "24hs"])
-export const MercadoEnum = z.enum(["BYMA", "A3", "SENEBI/SISTACO", "Exterior"])
+// Enums for order form
 export const OrderTypeEnum = z.enum(["Compra", "Venta"])
+export type OrderTypeEnum = z.infer<typeof OrderTypeEnum>
 
-// Esquema para una orden individual
-export const individualOrderSchema = z.object({
-  clientId: z.string().min(1, "Debe seleccionar un cliente"),
-  ticker: z.string().min(1, "Debe ingresar un ticker"),
-  type: OrderTypeEnum,
-  quantity: z.coerce.number().positive("La cantidad debe ser mayor a 0"),
-  priceType: PriceTypeEnum,
-  price: z.coerce.number().positive("El precio debe ser mayor a 0"),
-  usePriceBands: z.boolean().default(false),
-  minPrice: z.coerce.number().optional(),
-  maxPrice: z.coerce.number().optional(),
-  plazo: PlazoEnum,
-  mercado: MercadoEnum,
-  notes: z.string().optional(),
-})
+// Corregido para usar los valores originales
+export const PlazoEnum = z.enum(["CI", "24hs", "48hs", "72hs"])
+export type PlazoEnum = z.infer<typeof PlazoEnum>
 
-// Esquema para una orden individual en un swap
-export const swapOrderSchema = individualOrderSchema.omit({ clientId: true })
+export const MercadoEnum = z.enum(["BYMA", "A3", "SENEBI/SISTACO", "EXTERIOR"])
+export type MercadoEnum = z.infer<typeof MercadoEnum>
 
-// Esquema para un swap completo
-export const swapSchema = z.object({
-  clientId: z.string().min(1, "Debe seleccionar un cliente"),
-  sellOrder: swapOrderSchema.extend({
-    type: z.literal(OrderTypeEnum.enum.Venta),
+// Schema for order form data
+export const orderFormSchema = z.object({
+  mode: z.enum(["individual", "multi", "bulk", "swap"]).default("individual"),
+  data: z.object({
+    clientId: z.string().min(1, "El cliente es requerido"),
+    ticker: z.string().min(1, "El activo es requerido"),
+    type: OrderTypeEnum,
+    isMarketOrder: z.boolean().default(false),
+    priceType: z.enum(["money", "yield"]).default("money"),
+    price: z.number().optional(),
+    savedPrice: z.number().optional(),
+    quantity: z.number().optional(),
+    amount: z.number().optional(),
+    inputMode: z.enum(["quantity", "amount"]).default("quantity"),
+    usePriceBands: z.boolean().default(false),
+    minPrice: z.number().optional(),
+    maxPrice: z.number().optional(),
+    plazo: PlazoEnum,
+    mercado: MercadoEnum,
+    notes: z.string().optional(),
   }),
-  buyOrder: swapOrderSchema.extend({
-    type: z.literal(OrderTypeEnum.enum.Compra),
-    useFullAmount: z.boolean().default(true),
-  }),
-  notes: z.string().optional(),
 })
 
-// Esquema para una orden en carga masiva
-export const bulkOrderItemSchema = individualOrderSchema.omit({ clientId: true })
-
-// Esquema para carga masiva completa
-export const bulkOrderSchema = z.object({
-  clientId: z.string().min(1, "Debe seleccionar un cliente"),
-  orders: z.array(bulkOrderItemSchema).min(1, "Debe agregar al menos una orden"),
-  notes: z.string().optional(),
-})
-
-// Tipo para el formulario principal que puede ser cualquiera de los tres tipos
-export const orderFormSchema = z.discriminatedUnion("mode", [
-  z.object({ mode: z.literal("individual"), data: individualOrderSchema }),
-  z.object({ mode: z.literal("bulk"), data: bulkOrderSchema }),
-  z.object({ mode: z.literal("swap"), data: swapSchema }),
-])
-
-// Tipos TypeScript derivados de los esquemas Zod
-export type PriceType = z.infer<typeof PriceTypeEnum>
-export type Plazo = z.infer<typeof PlazoEnum>
-export type Mercado = z.infer<typeof MercadoEnum>
-export type OrderType = z.infer<typeof OrderTypeEnum>
-export type IndividualOrderFormValues = z.infer<typeof individualOrderSchema>
-export type SwapOrderFormValues = z.infer<typeof swapOrderSchema>
-export type SwapFormValues = z.infer<typeof swapSchema>
-export type BulkOrderItemFormValues = z.infer<typeof bulkOrderItemSchema>
-export type BulkOrderFormValues = z.infer<typeof bulkOrderSchema>
+// Type for order form values
 export type OrderFormValues = z.infer<typeof orderFormSchema>
-

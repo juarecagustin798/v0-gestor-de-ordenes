@@ -1,12 +1,29 @@
 "use server"
 
-import type { OrderFormValues, StatusUpdateParams, Order, NotificationState } from "./types"
-import { updateMockOrder, addMockObservation, createMockOrder, getOrderById } from "./data"
+import type { OrderFormValues, StatusUpdateParams, Order as OrderType, NotificationState } from "./types"
+import { updateMockOrder, addMockObservation, createMockOrder, getOrderById, getClientById, getAssetById } from "./data"
 import { revalidatePath } from "next/cache"
 import { cookies } from "next/headers"
-import { getClientById, getAssetById } from "./data"
 // Añadir la importación de OrderFormValues al principio del archivo
 // import { OrderFormValues } from "./types-order-form"
+
+// Tipos
+export interface Client {
+  id: string
+  name: string
+  [key: string]: any
+}
+
+export interface Asset {
+  id: string
+  ticker: string
+  name: string
+  lastPrice?: number
+  [key: string]: any
+}
+
+// Mock orders (assuming this is where it should be declared)
+const mockOrders: OrderType[] = []
 
 // Función para obtener el estado actual de las notificaciones
 function getNotificationState(): NotificationState {
@@ -185,40 +202,74 @@ export async function markElementAsRead(
   }
 }
 
+// Actualizar la función createOrder para manejar el nuevo formato de datos
 export async function createOrder(data: OrderFormValues) {
   try {
+    // Verificar que los datos requeridos estén presentes
+    if (!data.data.clientId) {
+      return { success: false, error: "ID de cliente no proporcionado" }
+    }
+
     // Obtener información del cliente y del activo
-    const client = await getClientById(data.clientId)
-    const asset = await getAssetById(data.assetId)
+    const client = await getClientById(data.data.clientId)
+    const asset = await getAssetById(data.data.ticker)
 
     if (!client || !asset) {
       throw new Error("Cliente o activo no encontrado")
     }
 
+    // Determinar la cantidad y el precio según el modo de entrada
+    const quantity =
+      data.data.inputMode === "quantity"
+        ? data.data.quantity
+        : Math.floor((data.data.amount || 0) / (data.data.price || 1))
+
+    const price = data.data.isMarketOrder ? 0 : data.data.price || 0
+
     // Calcular el total
-    const total = data.quantity * data.price
+    const total = quantity * price
 
     // Crear la orden usando la función createMockOrder
     const newOrder = createMockOrder({
       clientId: client.id,
-      client: client.name,
+      client: client.name || client.denominacion || client.titular || `Cliente ${client.id}`,
       assetId: asset.id,
       asset: asset.name,
       ticker: asset.ticker,
-      type: data.type,
-      quantity: data.quantity,
-      price: data.price,
+      type: data.data.type === "buy" ? "Compra" : data.data.type === "sell" ? "Venta" : data.data.type,
+      quantity: quantity,
+      price: price,
       total: total,
       status: "Pendiente",
-      notes: data.notes,
+      notes: (data.data.isMarketOrder ? "ORDEN A MERCADO. " : "") + (data.data.notes || ""),
       commercialId: "COM-001", // En un entorno real, esto vendría del usuario autenticado
       commercial: "Juan Pérez", // En un entorno real, esto vendría del usuario autenticado
       observations: [],
       unreadUpdates: 0,
       lastUpdateType: undefined,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      plazo: data.data.plazo,
+      mercado: data.data.mercado,
+      priceType: data.data.priceType,
+      minPrice: !data.data.isMarketOrder && data.data.usePriceBands ? data.data.minPrice : undefined,
+      maxPrice: !data.data.isMarketOrder && data.data.usePriceBands ? data.data.maxPrice : undefined,
     })
 
     console.log("Orden creada:", newOrder)
+
+    // Ensure the order is added to mockOrders
+    if (!mockOrders.some((order) => order.id === newOrder.id)) {
+      mockOrders.push(newOrder)
+    }
+
+    // Persist orders to localStorage for better data retention
+    try {
+      localStorage.setItem("mockOrders", JSON.stringify(mockOrders))
+      console.log("Órdenes guardadas en localStorage:", mockOrders.length)
+    } catch (e) {
+      console.warn("No se pudo guardar en localStorage:", e)
+    }
 
     // Revalidar la ruta para actualizar los datos
     revalidatePath("/")
@@ -254,7 +305,7 @@ export async function updateOrderStatus(params: StatusUpdateParams) {
     // Actualizar cada orden
     const updatedOrders = orderIds.map((orderId) => {
       // Preparar las actualizaciones
-      const updates: Partial<Order> = {
+      const updates: Partial<OrderType> = {
         status: status,
         updatedAt: new Date(),
       }
@@ -373,65 +424,119 @@ export async function addObservation(orderId: string, content: string) {
 // Añadir la función createOrders al final del archivo, antes de la última llave de cierre
 export async function createOrders(formData: OrderFormValues) {
   try {
+    console.log("createOrders called with data:", formData)
     const { mode, data } = formData
 
-    // Verificar que el cliente existe
+    // Verify that the client exists
     let clientId: string
     let clientName: string
 
     if (mode === "individual") {
       clientId = data.clientId
+      console.log("Individual order mode, clientId:", clientId)
     } else if (mode === "bulk") {
       clientId = data.clientId
+      console.log("Bulk order mode, clientId:", clientId)
     } else if (mode === "swap") {
       clientId = data.clientId
+      console.log("Swap order mode, clientId:", clientId)
     } else {
       throw new Error("Modo de formulario no válido")
     }
 
-    const client = await getClientById(clientId)
-    if (!client) {
-      return { success: false, error: "Cliente no encontrado" }
+    // Check if clientId is empty
+    if (!clientId) {
+      console.error("Client ID is empty")
+      return { success: false, error: "ID de cliente no proporcionado" }
     }
-    clientName = client.name
 
-    // Crear órdenes según el modo
+    // Intentar obtener el cliente
+    let client
+    try {
+      console.log("Buscando cliente con ID:", clientId)
+      client = await getClientById(clientId)
+
+      if (!client) {
+        console.error("Cliente no encontrado para ID:", clientId)
+        console.log("Creando cliente temporal para continuar")
+        // Crear un cliente temporal para evitar que falle la creación de la orden
+        client = {
+          id: clientId,
+          name: `Cliente ${clientId.substring(0, 8)}`,
+          idCliente: clientId,
+          accountNumber: clientId,
+        }
+      }
+    } catch (error) {
+      console.error("Error al buscar cliente:", error)
+      // Crear un cliente temporal para evitar que falle la creación de la orden
+      client = {
+        id: clientId,
+        name: `Cliente ${clientId.substring(0, 8)}`,
+        idCliente: clientId,
+        accountNumber: clientId,
+      }
+    }
+
+    clientName = client.name || client.denominacion || client.titular || `Cliente ${clientId.substring(0, 8)}`
+    console.log("Cliente encontrado o creado:", clientName)
+
+    // Create orders based on mode
     if (mode === "individual") {
-      // Obtener información del activo
+      // Get asset information
       const asset = await getAssetById(data.ticker)
       if (!asset) {
+        console.error("Asset not found for ticker:", data.ticker)
         return { success: false, error: "Activo no encontrado" }
       }
+      console.log("Asset found:", asset.name)
 
-      // Calcular el total
-      const total = data.quantity * data.price
-
-      // Crear la orden
-      const newOrder = createMockOrder({
+      // Create the order
+      console.log("Creating order with data:", {
         clientId: client.id,
-        client: client.name,
+        client: clientName,
         assetId: asset.id,
         asset: asset.name,
         ticker: asset.ticker,
         type: data.type,
         quantity: data.quantity,
-        price: data.price,
-        total: total,
-        status: "Pendiente",
-        notes: data.notes || "",
-        commercialId: "COM-001", // En un entorno real, esto vendría del usuario autenticado
-        commercial: "Juan Pérez", // En un entorno real, esto vendría del usuario autenticado
-        observations: [],
-        plazo: data.plazo,
-        mercado: data.mercado,
-        priceType: data.priceType,
-        minPrice: data.usePriceBands ? data.minPrice : undefined,
-        maxPrice: data.usePriceBands ? data.maxPrice : undefined,
+        price: data.isMarketOrder ? 0 : data.price,
       })
 
-      console.log("Nueva orden creada:", newOrder)
+      const newOrder = createMockOrder({
+        clientId: client.id,
+        client: clientName,
+        assetId: asset.id,
+        asset: asset.name,
+        ticker: asset.ticker,
+        type: data.operationType === "buy" ? "Compra" : "Venta",
+        quantity: data.quantity,
+        price: data.isMarketOrder ? 0 : data.price,
+        total: data.isMarketOrder ? 0 : data.quantity * data.price,
+        status: "Pendiente",
+        notes: (data.isMarketOrder ? "ORDEN A MERCADO. " : "") + (data.notes || ""),
+        commercialId: "COM-001",
+        commercial: "Juan Pérez",
+        observations: [],
+        mercado: data.market,
+        isMarketOrder: data.isMarketOrder,
+      })
 
-      // Revalidar rutas
+      console.log("New order created:", newOrder)
+
+      // Save orders to localStorage
+      try {
+        if (typeof window !== "undefined") {
+          const currentOrders = JSON.parse(localStorage.getItem("mockOrders") || "[]")
+          currentOrders.push(newOrder)
+          localStorage.setItem("mockOrders", JSON.stringify(currentOrders))
+          console.log("Orders saved to localStorage, total count:", currentOrders.length)
+        }
+      } catch (e) {
+        console.warn("Could not save to localStorage:", e)
+      }
+
+      // Revalidate routes
       revalidatePath("/")
       revalidatePath("/orders")
       revalidatePath("/trading")
@@ -458,7 +563,7 @@ export async function createOrders(formData: OrderFormValues) {
         // Crear la orden
         const newOrder = createMockOrder({
           clientId: client.id,
-          client: client.name,
+          client: clientName,
           assetId: asset.id,
           asset: asset.name,
           ticker: asset.ticker,
@@ -479,6 +584,18 @@ export async function createOrders(formData: OrderFormValues) {
         })
 
         createdOrders.push(newOrder)
+      }
+
+      // Save orders to localStorage
+      try {
+        if (typeof window !== "undefined") {
+          const currentOrders = JSON.parse(localStorage.getItem("mockOrders") || "[]")
+          createdOrders.forEach((order) => currentOrders.push(order))
+          localStorage.setItem("mockOrders", JSON.stringify(currentOrders))
+          console.log("Bulk orders saved to localStorage, total count:", currentOrders.length)
+        }
+      } catch (e) {
+        console.warn("Could not save bulk orders to localStorage:", e)
       }
 
       // Revalidar rutas
@@ -504,7 +621,7 @@ export async function createOrders(formData: OrderFormValues) {
 
       const sellOrder = createMockOrder({
         clientId: client.id,
-        client: client.name,
+        client: clientName,
         assetId: sellAsset.id,
         asset: sellAsset.name,
         ticker: sellAsset.ticker,
@@ -538,7 +655,7 @@ export async function createOrders(formData: OrderFormValues) {
 
       const buyOrder = createMockOrder({
         clientId: client.id,
-        client: client.name,
+        client: clientName,
         assetId: buyAsset.id,
         asset: buyAsset.name,
         ticker: buyAsset.ticker,
@@ -568,6 +685,18 @@ export async function createOrders(formData: OrderFormValues) {
         relatedOrderId: buyOrder.id,
       })
 
+      // Save orders to localStorage
+      try {
+        if (typeof window !== "undefined") {
+          const currentOrders = JSON.parse(localStorage.getItem("mockOrders") || "[]")
+          currentOrders.push(sellOrder, buyOrder)
+          localStorage.setItem("mockOrders", JSON.stringify(currentOrders))
+          console.log("Swap orders saved to localStorage, total count:", currentOrders.length)
+        }
+      } catch (e) {
+        console.warn("Could not save swap orders to localStorage:", e)
+      }
+
       // Revalidar rutas
       revalidatePath("/")
       revalidatePath("/orders")
@@ -587,3 +716,156 @@ export async function createOrders(formData: OrderFormValues) {
   }
 }
 
+export interface OrderTypeDefinition {
+  id: string
+  clientId: string
+  assetId: string
+  quantity: number
+  amount?: number
+  price: number
+  market: string
+  term: string
+  status: "pending" | "completed" | "cancelled"
+  observations?: string
+  createdAt: string
+  [key: string]: any
+}
+
+export async function getClientsFromSavedFile(): Promise<Client[]> {
+  "use server"
+
+  try {
+    // En un entorno real, esto podría obtener datos de una API o base de datos
+    // Para este ejemplo, simulamos que devuelve datos
+    return [
+      { id: "1", name: "Cliente 1" },
+      { id: "2", name: "Cliente 2" },
+      { id: "3", name: "Cliente 3" },
+      { id: "4", name: "Cliente 4" },
+      { id: "5", name: "Cliente 5" },
+    ]
+  } catch (error) {
+    console.error("Error en getClientsFromSavedFile:", error)
+    return [] // Devolver un array vacío en caso de error
+  }
+}
+
+export async function getAssets(): Promise<Asset[]> {
+  // En un entorno real, esto podría obtener datos de una API o base de datos
+  // Para este ejemplo, simulamos que devuelve datos
+  return [
+    { id: "1", ticker: "AAPL", name: "Apple Inc.", lastPrice: 150.25 },
+    { id: "2", ticker: "MSFT", name: "Microsoft Corporation", lastPrice: 290.1 },
+    { id: "3", ticker: "GOOGL", name: "Alphabet Inc.", lastPrice: 2750.5 },
+    { id: "4", ticker: "AMZN", name: "Amazon.com, Inc.", lastPrice: 3300.75 },
+    { id: "5", ticker: "FB", name: "Meta Platforms, Inc.", lastPrice: 325.45 },
+    { id: "6", ticker: "TSLA", name: "Tesla, Inc.", lastPrice: 850.3 },
+    { id: "7", ticker: "NVDA", name: "NVIDIA Corporation", lastPrice: 215.6 },
+    { id: "8", ticker: "JPM", name: "JPMorgan Chase & Co.", lastPrice: 150.9 },
+    { id: "9", ticker: "V", name: "Visa Inc.", lastPrice: 230.15 },
+    { id: "10", ticker: "JNJ", name: "Johnson & Johnson", lastPrice: 170.25 },
+  ]
+}
+
+export async function createOrderType(
+  orderData: Omit<OrderTypeDefinition, "id" | "createdAt" | "status">,
+): Promise<OrderTypeDefinition> {
+  // En un entorno real, esto enviaría datos a una API o base de datos
+  // Para este ejemplo, simulamos que crea una orden y devuelve los datos
+  const newOrder: OrderTypeDefinition = {
+    ...orderData,
+    id: Math.random().toString(36).substring(2, 9),
+    status: "pending",
+    createdAt: new Date().toISOString(),
+  }
+
+  // Revalidar la ruta para actualizar los datos
+  revalidatePath("/orders")
+
+  return newOrder
+}
+
+export async function getOrders(): Promise<OrderTypeDefinition[]> {
+  // En un entorno real, esto obtendría datos de una API o base de datos
+  // Para este ejemplo, simulamos que devuelve datos
+  return [
+    {
+      id: "1",
+      clientId: "1",
+      assetId: "1",
+      quantity: 10,
+      price: 150.25,
+      amount: 1502.5,
+      market: "BYMA",
+      term: "CI",
+      status: "pending",
+      createdAt: "2023-01-01T12:00:00Z",
+    },
+    {
+      id: "2",
+      clientId: "2",
+      assetId: "2",
+      quantity: 5,
+      price: 290.1,
+      amount: 1450.5,
+      market: "A3",
+      term: "24hs",
+      status: "completed",
+      createdAt: "2023-01-02T14:30:00Z",
+    },
+    {
+      id: "3",
+      clientId: "3",
+      assetId: "3",
+      quantity: 2,
+      price: 2750.5,
+      amount: 5501.0,
+      market: "EXTERIOR",
+      term: "CI",
+      status: "cancelled",
+      createdAt: "2023-01-03T09:15:00Z",
+    },
+  ]
+}
+
+export async function updateOrder(
+  orderId: string,
+  orderData: Partial<OrderTypeDefinition>,
+): Promise<OrderTypeDefinition> {
+  // En un entorno real, esto actualizaría datos en una API o base de datos
+  // Para este ejemplo, simulamos que actualiza una orden y devuelve los datos
+
+  // Revalidar la ruta para actualizar los datos
+  revalidatePath("/orders")
+
+  return {
+    id: orderId,
+    clientId: "1",
+    assetId: "1",
+    quantity: 10,
+    price: 150.25,
+    amount: 1502.5,
+    market: "BYMA",
+    term: "CI",
+    status: orderData.status || "pending",
+    createdAt: "2023-01-01T12:00:00Z",
+    ...orderData,
+  }
+}
+
+// Buscar la función que crea órdenes, probablemente se llame createOrder o similar
+// Modificar para asegurar que el tipo se mantenga como lo envió el usuario
+
+// Buscar algo como:
+// export async function createOrder(orderData: any) {
+// Asegurarse de que esta línea no esté sobrescribiendo el tipo:
+// orderData.type = "Venta"; // <-- Eliminar o comentar esta línea si existe
+
+// O si hay alguna lógica que esté cambiando el tipo, modificarla para respetar el tipo original:
+// Por ejemplo, si hay algo como:
+// if (orderData.operationType === "buy") {
+//   orderData.type = "Venta"; // <-- Esto está incorrecto, debería ser "Compra"
+// }
+
+// Agregar un log para depuración:
+// Note: Removed console.log statement that was outside of function scope

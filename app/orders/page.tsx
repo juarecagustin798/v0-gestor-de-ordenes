@@ -1,3 +1,5 @@
+"use client"
+
 import Link from "next/link"
 import { getOrders } from "@/lib/data"
 import { DashboardHeader } from "@/components/dashboard-header"
@@ -53,4 +55,3 @@ export default async function OrdersPage() {
     </DashboardShell>
   )
 }
-

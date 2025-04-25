@@ -1,0 +1,106 @@
+"use server"
+
+import type { OrderFormValues } from "@/lib/types-order-form"
+import { createMockOrder, getClientById, getAssetById } from "@/lib/data"
+import { revalidatePath } from "next/cache"
+
+export async function createOrders(formData: OrderFormValues) {
+  try {
+    console.log("createOrders called with data:", formData)
+    const { mode, data } = formData
+
+    // Verify that the client exists
+    let clientId: string
+    let clientName: string
+
+    if (mode === "individual") {
+      clientId = data.clientId
+      console.log("Individual order mode, clientId:", clientId)
+    } else if (mode === "bulk") {
+      clientId = data.clientId
+      console.log("Bulk order mode, clientId:", clientId)
+    } else if (mode === "swap") {
+      clientId = data.clientId
+      console.log("Swap order mode, clientId:", clientId)
+    } else {
+      throw new Error("Modo de formulario no válido")
+    }
+
+    // Check if clientId is empty
+    if (!clientId) {
+      console.error("Client ID is empty")
+      return { success: false, error: "ID de cliente no proporcionado" }
+    }
+
+    const client = await getClientById(clientId)
+    if (!client) {
+      console.error("Client not found for ID:", clientId)
+      return { success: false, error: "Cliente no encontrado" }
+    }
+    clientName = client.name
+    console.log("Client found:", clientName)
+
+    // Create orders based on mode
+    if (mode === "individual") {
+      // Get asset information
+      const asset = await getAssetById(data.ticker)
+      if (!asset) {
+        console.error("Asset not found for ticker:", data.ticker)
+        return { success: false, error: "Activo no encontrado" }
+      }
+      console.log("Asset found:", asset.name)
+
+      // Create the order
+      console.log("Creating order with data:", {
+        clientId: client.id,
+        client: client.name,
+        assetId: asset.id,
+        asset: asset.name,
+        ticker: data.ticker,
+        type: data.type,
+        quantity: data.quantity,
+        price: data.isMarketOrder ? 0 : data.price,
+      })
+
+      const newOrder = createMockOrder({
+        clientId: client.id,
+        client: client.name,
+        assetId: asset.id,
+        asset: asset.name,
+        ticker: data.ticker,
+        type: data.type,
+        quantity: data.quantity,
+        price: data.isMarketOrder ? 0 : data.price,
+        total: data.isMarketOrder ? 0 : data.quantity * data.price,
+        status: "Pendiente",
+        notes: (data.isMarketOrder ? "ORDEN A MERCADO. " : "") + (data.notes || ""),
+        commercialId: "COM-001",
+        commercial: "Juan Pérez",
+        observations: [],
+        plazo: data.plazo,
+        mercado: data.mercado,
+        priceType: data.priceType,
+        minPrice: !data.isMarketOrder && data.usePriceBands ? data.minPrice : undefined,
+        maxPrice: !data.isMarketOrder && data.usePriceBands ? data.maxPrice : undefined,
+        isMarketOrder: data.isMarketOrder,
+      })
+
+      console.log("New order created:", newOrder)
+
+      revalidatePath("/")
+      revalidatePath("/orders")
+      revalidatePath("/trading")
+
+      return {
+        success: true,
+        message: "Orden creada exitosamente",
+        orderId: newOrder.id,
+      }
+    } else {
+      return { success: false, error: "Modo de formulario no válido" }
+    }
+  } catch (error) {
+    console.error("Error al crear órdenes:", error)
+    return { success: false, error: "Error al crear las órdenes" }
+  }
+}

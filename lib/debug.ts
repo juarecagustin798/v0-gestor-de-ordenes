@@ -16,4 +16,3 @@ export function checkOrderExists(id: string) {
 export function getOrderCount() {
   return mockOrders.length
 }
-

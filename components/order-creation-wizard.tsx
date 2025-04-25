@@ -176,4 +176,3 @@ export function OrderCreationWizard({ clients, assets }: OrderCreationWizardProp
 
   return <Card className="p-6">{renderStep()}</Card>
 }
-

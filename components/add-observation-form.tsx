@@ -66,4 +66,3 @@ export function AddObservationForm({ orderId }: AddObservationFormProps) {
     </form>
   )
 }
-

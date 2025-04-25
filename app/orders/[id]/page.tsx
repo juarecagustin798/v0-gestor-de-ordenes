@@ -1,3 +1,5 @@
+"use client"
+
 import { DashboardHeader } from "@/components/dashboard-header"
 import { DashboardShell } from "@/components/dashboard-shell"
 import { OrderDetails } from "@/components/order-details"
@@ -31,4 +33,3 @@ export default async function OrderPage({ params }: { params: { id: string } }) 
     return notFound()
   }
 }
-

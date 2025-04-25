@@ -24,7 +24,7 @@ export function OrderDetails({ order }: { order: Order }) {
     order.executedQuantity && order.executedPrice ? order.executedQuantity * order.executedPrice : undefined
 
   // Estado local para rastrear elementos no leídos después de que se carga el componente
-  const [unreadElements, setUnreadElements] = useState(order.unreadElements)
+  const [unreadElements, setUnreadElements] = useState<Order["unreadElements"]>(order.unreadElements || undefined)
 
   useEffect(() => {
     setUnreadElements(order.unreadElements)
@@ -230,28 +230,20 @@ export function OrderDetails({ order }: { order: Order }) {
               {/* Mostrar bandas de precio si existen */}
               {(order.minPrice !== undefined || order.maxPrice !== undefined) && (
                 <>
-                  {order.minPrice !== undefined && (
-                    <div className="flex justify-between">
-                      <span className="font-medium">Precio mínimo:</span>
-                      <span>
-                        {new Intl.NumberFormat("es-AR", {
-                          style: "currency",
-                          currency: "ARS",
-                        }).format(order.minPrice)}
-                      </span>
-                    </div>
-                  )}
-                  {order.maxPrice !== undefined && (
-                    <div className="flex justify-between">
-                      <span className="font-medium">Precio máximo:</span>
-                      <span>
-                        {new Intl.NumberFormat("es-AR", {
-                          style: "currency",
-                          currency: "ARS",
-                        }).format(order.maxPrice)}
-                      </span>
-                    </div>
-                  )}
+                  <div className="flex justify-between">
+                    <span className="font-medium">Bandas de precio:</span>
+                    <span>
+                      {new Intl.NumberFormat("es-AR", {
+                        style: "currency",
+                        currency: "ARS",
+                      }).format(order.minPrice || 0)}
+                      /
+                      {new Intl.NumberFormat("es-AR", {
+                        style: "currency",
+                        currency: "ARS",
+                      }).format(order.maxPrice || 0)}
+                    </span>
+                  </div>
                 </>
               )}
 
@@ -378,4 +370,3 @@ export function OrderDetails({ order }: { order: Order }) {
     </div>
   )
 }
-
