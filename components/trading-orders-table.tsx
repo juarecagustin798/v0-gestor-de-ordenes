@@ -53,19 +53,22 @@ import { ExecutionConfirmationDialog } from "./execution-confirmation-dialog"
 import { NotificationBadge } from "./notification-badge"
 
 // Importar el servicio de Supabase para órdenes
-import { OrdenService, type Orden } from "@/lib/services/orden-supabase-service-client"
+import { OrdenService } from "@/lib/services/orden-service-proxy"
+import type { Orden } from "@/lib/types/orden.types"
 import { createClient } from "@/lib/supabase/client"
 
 // Modificar la función TradingOrdersTable para usar Supabase
-export function TradingOrdersTable({
-  availableActions,
-  readOnly = false,
-  status,
-}: {
-  availableActions: ("tomar" | "ejecutar" | "ejecutarParcial" | "revisar" | "cancelar")[]
-  readOnly?: boolean
-  status?: string
-}) {
+export function TradingOrdersTable(
+  {
+    availableActions,
+    readOnly = false,
+    status,
+  }: {
+    availableActions: ("tomar" | "ejecutar" | "ejecutarParcial" | "revisar" | "cancelar")[]
+    readOnly?: boolean
+    status?: string
+  } = { availableActions: [] },
+) {
   const router = useRouter()
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
@@ -73,11 +76,11 @@ export function TradingOrdersTable({
   const [rowSelection, setRowSelection] = useState({})
   const [isUpdating, setIsUpdating] = useState(false)
   const [activeFilters, setActiveFilters] = useState<Record<string, boolean>>({})
-  const [orders, setOrders] = useState<Order[]>([])
+  const [orders, setOrders] = useState<Orden[]>([])
   const [loading, setLoading] = useState(false) // Cambiado a false por defecto
   const [initialLoadDone, setInitialLoadDone] = useState(false)
   const [debugInfo, setDebugInfo] = useState<string>("")
-  const ordersRef = useRef<Order[]>([])
+  const ordersRef = useRef<Orden[]>([])
 
   // Estado para el diálogo de actualización de estado
   const [statusDialogOpen, setStatusDialogOpen] = useState(false)

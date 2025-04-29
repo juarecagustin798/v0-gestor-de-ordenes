@@ -2,9 +2,9 @@
 
 import { createServerClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
-import type { OrdenInput, OrdenDetalleInput, OrdenObservacionInput, Orden } from "@/lib/types/orden-types"
+import type { OrdenInput, OrdenDetalleInput, OrdenObservacionInput, Orden } from "@/lib/types/orden.types"
 
-// Crear una nueva orden
+// Create a new order
 export async function crearOrden(
   orden: OrdenInput,
   detalles: OrdenDetalleInput[],
@@ -12,14 +12,14 @@ export async function crearOrden(
   try {
     const supabase = createServerClient()
 
-    // Insertar la orden
+    // Insert the order
     const { data: ordenData, error: ordenError } = await supabase.from("ordenes").insert(orden).select("id").single()
 
     if (ordenError) throw ordenError
 
     const ordenId = ordenData.id
 
-    // Insertar los detalles de la orden
+    // Insert the order details
     const detallesConOrdenId = detalles.map((detalle) => ({
       ...detalle,
       orden_id: ordenId,
@@ -29,7 +29,7 @@ export async function crearOrden(
 
     if (detallesError) throw detallesError
 
-    // Revalidar rutas
+    // Revalidate paths
     revalidatePath("/")
     revalidatePath("/ordenes")
 
@@ -40,7 +40,7 @@ export async function crearOrden(
   }
 }
 
-// Obtener todas las órdenes
+// Get all orders
 export async function obtenerOrdenes(): Promise<Orden[]> {
   try {
     const supabase = createServerClient()
@@ -56,17 +56,17 @@ export async function obtenerOrdenes(): Promise<Orden[]> {
   }
 }
 
-// Obtener una orden por ID con sus detalles y observaciones
+// Get an order by ID with its details and observations
 export async function obtenerOrdenPorId(id: string): Promise<Orden | null> {
   try {
     const supabase = createServerClient()
 
-    // Obtener la orden
+    // Get the order
     const { data: orden, error: ordenError } = await supabase.from("ordenes").select("*").eq("id", id).single()
 
     if (ordenError) throw ordenError
 
-    // Obtener los detalles de la orden
+    // Get the order details
     const { data: detalles, error: detallesError } = await supabase
       .from("orden_detalles")
       .select("*")
@@ -74,7 +74,7 @@ export async function obtenerOrdenPorId(id: string): Promise<Orden | null> {
 
     if (detallesError) throw detallesError
 
-    // Obtener las observaciones de la orden
+    // Get the order observations
     const { data: observaciones, error: observacionesError } = await supabase
       .from("orden_observaciones")
       .select("*")
@@ -94,7 +94,7 @@ export async function obtenerOrdenPorId(id: string): Promise<Orden | null> {
   }
 }
 
-// Actualizar una orden
+// Update an order
 export async function actualizarOrden(
   id: string,
   datos: Partial<OrdenInput>,
@@ -109,7 +109,7 @@ export async function actualizarOrden(
 
     if (error) throw error
 
-    // Revalidar rutas
+    // Revalidate paths
     revalidatePath("/")
     revalidatePath("/ordenes")
     revalidatePath(`/ordenes/${id}`)
@@ -121,17 +121,17 @@ export async function actualizarOrden(
   }
 }
 
-// Eliminar una orden
+// Delete an order
 export async function eliminarOrden(id: string): Promise<{ success: boolean; error?: string }> {
   try {
     const supabase = createServerClient()
 
-    // Eliminar la orden (las restricciones de clave foránea eliminarán automáticamente los detalles y observaciones)
+    // Delete the order (foreign key constraints will automatically delete details and observations)
     const { error } = await supabase.from("ordenes").delete().eq("id", id)
 
     if (error) throw error
 
-    // Revalidar rutas
+    // Revalidate paths
     revalidatePath("/")
     revalidatePath("/ordenes")
 
@@ -142,7 +142,7 @@ export async function eliminarOrden(id: string): Promise<{ success: boolean; err
   }
 }
 
-// Agregar una observación a una orden
+// Add an observation to an order
 export async function agregarObservacion(
   observacion: OrdenObservacionInput,
 ): Promise<{ success: boolean; id?: string; error?: string }> {
@@ -153,7 +153,7 @@ export async function agregarObservacion(
 
     if (error) throw error
 
-    // Revalidar rutas
+    // Revalidate paths
     revalidatePath("/")
     revalidatePath("/ordenes")
     revalidatePath(`/ordenes/${observacion.orden_id}`)
@@ -165,7 +165,7 @@ export async function agregarObservacion(
   }
 }
 
-// Actualizar el estado de una orden
+// Update the status of an order
 export async function actualizarEstadoOrden(
   id: string,
   estado: string,
@@ -174,7 +174,7 @@ export async function actualizarEstadoOrden(
   try {
     const supabase = createServerClient()
 
-    // Actualizar el estado de la orden
+    // Update the order status
     const { error: ordenError } = await supabase
       .from("ordenes")
       .update({
@@ -185,7 +185,7 @@ export async function actualizarEstadoOrden(
 
     if (ordenError) throw ordenError
 
-    // Si hay observación, agregarla
+    // If there's an observation, add it
     if (observacion) {
       const { error: observacionError } = await supabase.from("orden_observaciones").insert({
         orden_id: id,
@@ -195,7 +195,7 @@ export async function actualizarEstadoOrden(
       if (observacionError) throw observacionError
     }
 
-    // Revalidar rutas
+    // Revalidate paths
     revalidatePath("/")
     revalidatePath("/ordenes")
     revalidatePath(`/ordenes/${id}`)
@@ -207,7 +207,7 @@ export async function actualizarEstadoOrden(
   }
 }
 
-// Obtener órdenes por cliente
+// Get orders by client
 export async function obtenerOrdenesPorCliente(clienteId: string): Promise<Orden[]> {
   try {
     const supabase = createServerClient()
@@ -227,7 +227,7 @@ export async function obtenerOrdenesPorCliente(clienteId: string): Promise<Orden
   }
 }
 
-// Obtener órdenes por estado
+// Get orders by status
 export async function obtenerOrdenesPorEstado(estado: string): Promise<Orden[]> {
   try {
     const supabase = createServerClient()
@@ -247,7 +247,8 @@ export async function obtenerOrdenesPorEstado(estado: string): Promise<Orden[]> 
   }
 }
 
-// Nueva exportación para mantener compatibilidad: una función asíncrona que retorna todos los métodos.
+// Export OrdenService as an async function that returns the service object
+// This complies with the "use server" directive while providing the expected export
 export async function OrdenService() {
   return {
     crearOrden,

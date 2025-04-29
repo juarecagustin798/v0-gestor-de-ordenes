@@ -1,4 +1,4 @@
-// Tipos para las órdenes
+// Types for orders
 export interface OrdenInput {
   cliente_id: string
   cliente_nombre?: string

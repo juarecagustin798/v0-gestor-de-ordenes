@@ -8,8 +8,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ExternalLink } from "lucide-react"
-import { OrdenService, type Orden } from "@/lib/services/orden-supabase-service-client"
-// import type { Orden } from "@/lib/services/orden-supabase-service"
+import { OrdenService } from "@/lib/services/orden-service-proxy"
+import type { Orden } from "@/lib/types/orden.types"
 
 // Modificar el tipo Orden para incluir detalles
 type OrdenConDetalles = Orden & {

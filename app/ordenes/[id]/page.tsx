@@ -1,7 +1,5 @@
-"use client"
-
 import { notFound } from "next/navigation"
-import { OrdenService } from "@/lib/services/orden-supabase-service"
+import { obtenerOrdenPorId } from "@/lib/services/orden-supabase-service"
 import { OrdenDetalleView } from "@/components/ordenes/orden-detalle-view"
 import { Suspense } from "react"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -38,7 +36,7 @@ function OrdenDetailSkeleton() {
 // Componente wrapper para cargar los datos de la orden
 async function OrdenDetailWrapper({ id }: { id: string }) {
   // Obtener la orden desde Supabase
-  const orden = await OrdenService.obtenerOrdenPorId(id)
+  const orden = await obtenerOrdenPorId(id)
 
   if (!orden) {
     notFound()

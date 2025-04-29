@@ -1,51 +1,33 @@
-'use client'
+import { DashboardHeader } from "@/components/dashboard-header"
+import { DashboardShell } from "@/components/dashboard-shell"
+import { OrderDetails } from "@/components/order-details"
+import { getOrderById } from "@/lib/data"
+import { notFound } from "next/navigation"
 
-import { useState, useEffect } from 'react'
-import { DashboardHeader } from '@/components/dashboard-header'
-import { DashboardShell } from '@/components/dashboard-shell'
-import { OrderCreationForm } from '@/components/new-order-form/order-creation-form'
-import { getClients, getAssets } from '@/lib/data'
-import type { Client, Asset } from '@/lib/data'
+export const dynamic = "force-dynamic" // Forzar renderizado dinámico
 
-export default function CreateOrderPage() {
-  const [clients, setClients] = useState<Client[]>([])
-  const [assets, setAssets] = useState<Asset[]>([])
-  const [loading, setLoading] = useState(true)
+export default async function OrderPage({ params }: { params: { id: string } }) {
+  console.log("Renderizando página de orden con ID:", params.id)
 
-  useEffect(() => {
-    async function fetchData() {
-      setLoading(true)
-      const [clientsData, assetsData] = await Promise.all([
-        getClients(),
-        getAssets()
-      ])
-      setClients(clientsData)
-      setAssets(assetsData)
-      setLoading(false)
+  try {
+    // Intentar obtener la orden
+    const order = await getOrderById(params.id)
+
+    // Si no se encuentra la orden, mostrar la página 404
+    if (!order) {
+      console.error(`Orden con ID ${params.id} no encontrada`)
+      return notFound()
     }
-    fetchData()
-  }, [])
 
-  if (loading) {
+    // Renderizar la página con los detalles de la orden
     return (
       <DashboardShell>
-        <DashboardHeader
-          heading="Crear Orden"
-          text="Cargando datos…"
-        />
+        <DashboardHeader heading={`Orden #${order.id}`} text="Detalles de la orden." />
+        <OrderDetails order={order} />
       </DashboardShell>
     )
+  } catch (error) {
+    console.error(`Error al obtener la orden con ID ${params.id}:`, error)
+    return notFound()
   }
-
-  return (
-    <DashboardShell>
-      <DashboardHeader
-        heading="Crear Orden"
-        text="Crea una nueva orden para un cliente."
-      />
-      <div className="grid gap-8">
-        <OrderCreationForm clients={clients} assets={assets} />
-      </div>
-    </DashboardShell>
-  )
 }

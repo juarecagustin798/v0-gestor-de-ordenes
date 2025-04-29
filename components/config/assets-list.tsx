@@ -1,6 +1,5 @@
-"use client"
-
 import type React from "react"
+;('"use client')
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import { FixedSizeList as List } from "react-window"

@@ -1,16 +1,16 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
-import { getClientById, getAssetById } from "@/lib/data"
 import {
   crearOrden,
-  actualizarEstadoOrden as actualizarEstado,
-  agregarObservacion as agregarObs,
-  eliminarOrden as eliminarOrd,
-  obtenerOrdenes as obtenerOrds,
-  obtenerOrdenPorId as obtenerOrdenPorIdFn,
+  actualizarEstadoOrden as actualizarEstadoOrdenService,
+  agregarObservacion as agregarObservacionService,
+  eliminarOrden as eliminarOrdenService,
+  obtenerOrdenes as obtenerOrdenesService,
+  obtenerOrdenPorId as obtenerOrdenPorIdService,
 } from "@/lib/services/orden-supabase-service"
-import type { OrdenInput, OrdenDetalleInput } from "@/lib/types/orden-types"
+import type { OrdenInput, OrdenDetalleInput } from "@/lib/types/orden.types"
+import { getClientById, getAssetById } from "@/lib/data"
 
 // Tipo para los datos del formulario de orden individual
 interface IndividualOrderFormData {
@@ -262,10 +262,14 @@ export async function crearOperacionSwap(data: SwapOrderFormData) {
   }
 }
 
-// Función para actualizar el estado de una orden
-export async function actualizarEstadoOrden(id: string, estado: string, observacion?: string) {
+// Export the original function names for backward compatibility
+export const actualizarEstadoOrden = actualizarEstadoOrdenService
+export const agregarObservacionOrden = agregarObservacionService
+
+// Función para actualizar el estado de una orden (implementation kept for backward compatibility)
+export async function actualizarEstadoOrdenFuncion(id: string, estado: string, observacion?: string) {
   try {
-    const resultado = await actualizarEstado(id, estado, observacion)
+    const resultado = await actualizarEstadoOrdenService(id, estado, observacion)
 
     // Revalidar rutas
     revalidatePath("/")
@@ -279,10 +283,15 @@ export async function actualizarEstadoOrden(id: string, estado: string, observac
   }
 }
 
-// Función para agregar una observación a una orden
-export async function agregarObservacionOrden(id: string, texto: string, usuarioId?: string, usuarioNombre?: string) {
+// Función para agregar una observación a una orden (implementation kept for backward compatibility)
+export async function agregarObservacionOrdenFuncion(
+  id: string,
+  texto: string,
+  usuarioId?: string,
+  usuarioNombre?: string,
+) {
   try {
-    const resultado = await agregarObs({
+    const resultado = await agregarObservacionService({
       orden_id: id,
       texto,
       usuario_id: usuarioId,
@@ -302,9 +311,9 @@ export async function agregarObservacionOrden(id: string, texto: string, usuario
 }
 
 // Función para eliminar una orden
-export async function eliminarOrden(id: string) {
+export async function eliminarOrdenFuncion(id: string) {
   try {
-    const resultado = await eliminarOrd(id)
+    const resultado = await eliminarOrdenService(id)
 
     // Revalidar rutas
     revalidatePath("/")
@@ -318,9 +327,9 @@ export async function eliminarOrden(id: string) {
 }
 
 // Función para obtener todas las órdenes
-export async function obtenerOrdenes() {
+export async function obtenerOrdenesFuncion() {
   try {
-    return await obtenerOrds()
+    return await obtenerOrdenesService()
   } catch (error) {
     console.error("Error al obtener órdenes:", error)
     return []
@@ -328,9 +337,9 @@ export async function obtenerOrdenes() {
 }
 
 // Función para obtener una orden por ID
-export async function obtenerOrdenPorId(id: string) {
+export async function obtenerOrdenPorIdFuncion(id: string) {
   try {
-    return await obtenerOrdenPorIdFn(id)
+    return await obtenerOrdenPorIdService(id)
   } catch (error) {
     console.error(`Error al obtener orden ${id}:`, error)
     return null
