@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -9,50 +9,29 @@ import type { Order } from "@/lib/types"
 import Link from "next/link"
 import { formatDistanceToNow } from "date-fns"
 import { es } from "date-fns/locale"
-import { Badge } from "@/components/ui/badge"
 
-export function NotificationCenter() {
-  const [notifications, setNotifications] = useState<Order[]>([])
-  const [isOpen, setIsOpen] = useState(false)
+interface NotificationCenterProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  orders: Order[]
+  onRefresh?: () => void
+}
 
-  useEffect(() => {
-    // Simulate fetching notifications
-    const fetchNotifications = () => {
-      // In a real app, this would come from an API or state management
-      const notificationState = localStorage.getItem("order_notifications")
-      const ordersData = localStorage.getItem("mockOrders")
+export function NotificationCenter({ open, onOpenChange, orders, onRefresh }: NotificationCenterProps) {
+  const [activeTab, setActiveTab] = useState("all")
 
-      if (notificationState && ordersData) {
-        try {
-          const parsed = JSON.parse(notificationState)
-          const orders = JSON.parse(ordersData)
-          const orderIds = parsed.orderIds || []
-
-          // Filter orders that have notifications
-          const notificationOrders = orders.filter((order: Order) => orderIds.includes(order.id))
-          setNotifications(notificationOrders)
-        } catch (e) {
-          console.error("Error parsing notifications:", e)
-          setNotifications([])
-        }
-      } else {
-        setNotifications([])
-      }
-    }
-
-    fetchNotifications()
-    // Set up polling to check for new notifications
-    const interval = setInterval(fetchNotifications, 5000)
-    return () => clearInterval(interval)
-  }, [isOpen])
+  // Filter orders with unread updates
+  const ordersWithNotifications = orders.filter((order) => order.unreadUpdates && order.unreadUpdates > 0)
 
   const handleMarkAllAsRead = async () => {
-    if (notifications.length > 0) {
-      const orderIds = notifications.map((order) => order.id)
+    if (ordersWithNotifications.length > 0) {
+      const orderIds = ordersWithNotifications.map((order) => order.id)
       try {
-        await markNotificationsAsRead(orderIds) // Fixed: Changed from markNotificationAsRead to markNotificationsAsRead
-        setNotifications([])
-        setIsOpen(false)
+        await markNotificationsAsRead(orderIds)
+        onOpenChange(false)
+        if (onRefresh) {
+          onRefresh()
+        }
       } catch (error) {
         console.error("Error marking notifications as read:", error)
       }
@@ -66,30 +45,12 @@ export function NotificationCenter() {
   ) => {
     try {
       await markElementAsRead(orderId, type, observationId)
-      // Refresh notifications
-      const notificationState = localStorage.getItem("order_notifications")
-      const ordersData = localStorage.getItem("mockOrders")
-
-      if (notificationState && ordersData) {
-        try {
-          const parsed = JSON.parse(notificationState)
-          const orders = JSON.parse(ordersData)
-          const orderIds = parsed.orderIds || []
-
-          // Filter orders that have notifications
-          const notificationOrders = orders.filter((order: Order) => orderIds.includes(order.id))
-          setNotifications(notificationOrders)
-        } catch (e) {
-          console.error("Error parsing notifications:", e)
-        }
+      if (onRefresh) {
+        onRefresh()
       }
     } catch (error) {
       console.error("Error marking element as read:", error)
     }
-  }
-
-  const toggleOpen = () => {
-    setIsOpen(!isOpen)
   }
 
   const getNotificationText = (order: Order) => {
@@ -118,80 +79,76 @@ export function NotificationCenter() {
     }
   }
 
-  return (
-    <div className="relative">
-      <Button variant="ghost" onClick={toggleOpen}>
-        Notificaciones
-        {notifications.length > 0 && (
-          <Badge variant="destructive" className="ml-2">
-            {notifications.length}
-          </Badge>
-        )}
-      </Button>
+  if (!open) return null
 
-      {isOpen && (
-        <div className="absolute right-0 top-10 z-50 w-80 rounded-md border bg-background p-4 shadow-md">
-          <div className="mb-4 flex items-center justify-between">
-            <h3 className="text-lg font-semibold">Notificaciones</h3>
-            {notifications.length > 0 && (
+  return (
+    <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm">
+      <div className="fixed right-4 top-16 z-50 w-80 max-w-md rounded-md border bg-background p-4 shadow-md">
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="text-lg font-semibold">Notificaciones</h3>
+          <div className="flex gap-2">
+            {ordersWithNotifications.length > 0 && (
               <Button variant="ghost" size="sm" onClick={handleMarkAllAsRead}>
                 Marcar todo como leído
               </Button>
             )}
+            <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
+              Cerrar
+            </Button>
           </div>
-
-          <Tabs defaultValue="all">
-            <TabsList className="mb-4 grid w-full grid-cols-2">
-              <TabsTrigger value="all">Todas</TabsTrigger>
-              <TabsTrigger value="unread">No leídas</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="all">
-              <ScrollArea className="h-[300px]">
-                {notifications.length > 0 ? (
-                  <div className="space-y-2">
-                    {notifications.map((order) => (
-                      <div key={order.id} className="rounded-md border p-2">
-                        <div className="flex items-center justify-between">
-                          <Link href={`/orders/${order.id}`} className="font-medium hover:underline">
-                            {order.client} - {order.ticker}
-                          </Link>
-                          <span className="text-xs text-muted-foreground">{getNotificationTime(order)}</span>
-                        </div>
-                        <p className="text-sm">{getNotificationText(order)}</p>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-center text-muted-foreground">No hay notificaciones</p>
-                )}
-              </ScrollArea>
-            </TabsContent>
-
-            <TabsContent value="unread">
-              <ScrollArea className="h-[300px]">
-                {notifications.length > 0 ? (
-                  <div className="space-y-2">
-                    {notifications.map((order) => (
-                      <div key={order.id} className="rounded-md border p-2">
-                        <div className="flex items-center justify-between">
-                          <Link href={`/orders/${order.id}`} className="font-medium hover:underline">
-                            {order.client} - {order.ticker}
-                          </Link>
-                          <span className="text-xs text-muted-foreground">{getNotificationTime(order)}</span>
-                        </div>
-                        <p className="text-sm">{getNotificationText(order)}</p>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-center text-muted-foreground">No hay notificaciones no leídas</p>
-                )}
-              </ScrollArea>
-            </TabsContent>
-          </Tabs>
         </div>
-      )}
+
+        <Tabs defaultValue={activeTab} onValueChange={setActiveTab}>
+          <TabsList className="mb-4 grid w-full grid-cols-2">
+            <TabsTrigger value="all">Todas</TabsTrigger>
+            <TabsTrigger value="unread">No leídas ({ordersWithNotifications.length})</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="all">
+            <ScrollArea className="h-[300px]">
+              {orders.length > 0 ? (
+                <div className="space-y-2">
+                  {orders.map((order) => (
+                    <div key={order.id} className="rounded-md border p-2">
+                      <div className="flex items-center justify-between">
+                        <Link href={`/orders/${order.id}`} className="font-medium hover:underline">
+                          {order.client} - {order.ticker}
+                        </Link>
+                        <span className="text-xs text-muted-foreground">{getNotificationTime(order)}</span>
+                      </div>
+                      <p className="text-sm">{getNotificationText(order)}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-center text-muted-foreground">No hay notificaciones</p>
+              )}
+            </ScrollArea>
+          </TabsContent>
+
+          <TabsContent value="unread">
+            <ScrollArea className="h-[300px]">
+              {ordersWithNotifications.length > 0 ? (
+                <div className="space-y-2">
+                  {ordersWithNotifications.map((order) => (
+                    <div key={order.id} className="rounded-md border p-2">
+                      <div className="flex items-center justify-between">
+                        <Link href={`/orders/${order.id}`} className="font-medium hover:underline">
+                          {order.client} - {order.ticker}
+                        </Link>
+                        <span className="text-xs text-muted-foreground">{getNotificationTime(order)}</span>
+                      </div>
+                      <p className="text-sm">{getNotificationText(order)}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-center text-muted-foreground">No hay notificaciones no leídas</p>
+              )}
+            </ScrollArea>
+          </TabsContent>
+        </Tabs>
+      </div>
     </div>
   )
 }
