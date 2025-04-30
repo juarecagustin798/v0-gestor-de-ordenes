@@ -1,65 +1,84 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { FileSpreadsheet, Clock } from "lucide-react"
-import { getFileInfo, type FileInfo } from "@/lib/services/db-service"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Progress } from "@/components/ui/progress"
+import { OrdenService } from "@/lib/services/orden-service-proxy"
 
 export function ClientFileStatus() {
-  const [fileInfo, setFileInfo] = useState<FileInfo | null>(null)
+  const [clientStats, setClientStats] = useState({
+    totalClients: 0,
+    activeClients: 0,
+    completionPercentage: 0,
+  })
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const loadFileInfo = async () => {
+    const fetchClientStats = async () => {
       try {
-        const info = await getFileInfo()
-        setFileInfo(info)
+        // En un entorno real, esto vendría de una API
+        // Por ahora, simulamos algunos datos
+        const orders = await OrdenService.obtenerOrdenes()
+
+        // Extraer clientes únicos
+        const uniqueClients = new Set(orders.map((order) => order.cliente_id))
+        const totalClients = uniqueClients.size
+
+        // Clientes con órdenes completadas
+        const clientsWithCompletedOrders = new Set(
+          orders
+            .filter(
+              (order) => order.estado.toLowerCase() === "ejecutada" || order.estado.toLowerCase() === "completada",
+            )
+            .map((order) => order.cliente_id),
+        )
+        const activeClients = clientsWithCompletedOrders.size
+
+        // Calcular porcentaje
+        const completionPercentage = totalClients > 0 ? (activeClients / totalClients) * 100 : 0
+
+        setClientStats({
+          totalClients,
+          activeClients,
+          completionPercentage,
+        })
       } catch (error) {
-        console.error("Error al cargar información del archivo:", error)
+        console.error("Error al cargar estadísticas de clientes:", error)
+      } finally {
+        setLoading(false)
       }
     }
 
-    loadFileInfo()
-
-    // Escuchar eventos de actualización de clientes
-    const handleClientsUpdated = () => {
-      loadFileInfo()
-    }
-
-    window.addEventListener("clientsUpdated", handleClientsUpdated)
-
-    return () => {
-      window.removeEventListener("clientsUpdated", handleClientsUpdated)
-    }
+    fetchClientStats()
   }, [])
 
-  if (!fileInfo) return null
-
-  // Formatear fecha
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString)
-    return new Intl.DateTimeFormat("es-AR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    }).format(date)
-  }
-
-  // Formatear tamaño de archivo
-  const formatFileSize = (bytes: number) => {
-    if (bytes < 1024) return `${bytes} bytes`
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(2)} KB`
-    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`
-  }
-
   return (
-    <div className="flex items-center text-sm text-muted-foreground mt-2">
-      <FileSpreadsheet className="h-4 w-4 mr-1" />
-      <span className="mr-2">{fileInfo.name}</span>
-      <span className="mr-2">({formatFileSize(fileInfo.size)})</span>
-      <Clock className="h-4 w-4 mr-1 ml-2" />
-      <span>Importado: {formatDate(fileInfo.importedAt)}</span>
-      <span className="ml-2">Clientes: {fileInfo.clientCount}</span>
-    </div>
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle>Estado de Clientes</CardTitle>
+        <CardDescription>Progreso de activación de clientes</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {loading ? (
+          <div className="space-y-2">
+            <div className="h-4 w-full animate-pulse rounded bg-muted"></div>
+            <div className="h-4 w-3/4 animate-pulse rounded bg-muted"></div>
+          </div>
+        ) : (
+          <>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-medium">Clientes activos</span>
+              <span className="text-sm font-medium">
+                {clientStats.activeClients} de {clientStats.totalClients}
+              </span>
+            </div>
+            <Progress value={clientStats.completionPercentage} className="h-2" />
+            <p className="mt-2 text-xs text-muted-foreground">
+              {clientStats.completionPercentage.toFixed(0)}% de los clientes han realizado operaciones
+            </p>
+          </>
+        )}
+      </CardContent>
+    </Card>
   )
 }

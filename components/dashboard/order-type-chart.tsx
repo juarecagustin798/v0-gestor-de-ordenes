@@ -2,9 +2,8 @@
 
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend, ResponsiveContainer } from "recharts"
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend, ResponsiveContainer, Tooltip } from "recharts"
 import { OrdenService } from "@/lib/services/orden-service-proxy"
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
 
 export function OrderTypeChart() {
   const [data, setData] = useState<{ name: string; compra: number; venta: number }[]>([])
@@ -63,31 +62,19 @@ export function OrderTypeChart() {
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
           </div>
         ) : data.length > 0 ? (
-          <ChartContainer
-            config={{
-              compra: {
-                label: "Compras",
-                color: "hsl(var(--chart-1))",
-              },
-              venta: {
-                label: "Ventas",
-                color: "hsl(var(--chart-2))",
-              },
-            }}
-            className="h-[300px]"
-          >
+          <div className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={data}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="name" />
                 <YAxis />
-                <ChartTooltip content={<ChartTooltipContent />} />
+                <Tooltip />
                 <Legend />
-                <Bar dataKey="compra" fill="var(--color-compra)" name="Compras" />
-                <Bar dataKey="venta" fill="var(--color-venta)" name="Ventas" />
+                <Bar dataKey="compra" fill="#8884d8" name="Compras" />
+                <Bar dataKey="venta" fill="#82ca9d" name="Ventas" />
               </BarChart>
             </ResponsiveContainer>
-          </ChartContainer>
+          </div>
         ) : (
           <div className="text-center py-8 text-muted-foreground">No hay datos suficientes para mostrar el gráfico</div>
         )}

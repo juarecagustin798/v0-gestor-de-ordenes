@@ -1,133 +1,197 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
-import { ScrollArea } from "@/components/ui/scroll-area"
+import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
-import { BellOff } from "lucide-react"
-import { markNotificationsAsRead } from "@/lib/actions"
-import { toast } from "@/hooks/use-toast"
-import { useRouter } from "next/navigation"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { markElementAsRead, markNotificationsAsRead } from "@/lib/actions" // Fixed: Changed from markNotificationAsRead to markNotificationsAsRead
 import type { Order } from "@/lib/types"
+import Link from "next/link"
+import { formatDistanceToNow } from "date-fns"
+import { es } from "date-fns/locale"
+import { Badge } from "@/components/ui/badge"
 
-interface NotificationCenterProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  orders?: Order[]
-  onRefresh?: () => void
-}
+export function NotificationCenter() {
+  const [notifications, setNotifications] = useState<Order[]>([])
+  const [isOpen, setIsOpen] = useState(false)
 
-export function NotificationCenter({ open, onOpenChange, orders = [], onRefresh }: NotificationCenterProps) {
-  const router = useRouter()
-  const [ordersWithNotifications, setOrdersWithNotifications] = useState<Order[]>([])
-
-  // Filtrar órdenes con notificaciones no leídas
   useEffect(() => {
-    setOrdersWithNotifications(orders.filter((order) => order.unreadUpdates && order.unreadUpdates > 0))
-  }, [orders])
+    // Simulate fetching notifications
+    const fetchNotifications = () => {
+      // In a real app, this would come from an API or state management
+      const notificationState = localStorage.getItem("order_notifications")
+      const ordersData = localStorage.getItem("mockOrders")
 
-  // Marcar una orden como leída
-  const markAsRead = async (orderId: string) => {
-    try {
-      await markNotificationsAsRead([orderId])
-      toast({
-        title: "Notificación",
-        description: "Notificación marcada como leída",
-      })
-      if (onRefresh) {
-        onRefresh()
+      if (notificationState && ordersData) {
+        try {
+          const parsed = JSON.parse(notificationState)
+          const orders = JSON.parse(ordersData)
+          const orderIds = parsed.orderIds || []
+
+          // Filter orders that have notifications
+          const notificationOrders = orders.filter((order: Order) => orderIds.includes(order.id))
+          setNotifications(notificationOrders)
+        } catch (e) {
+          console.error("Error parsing notifications:", e)
+          setNotifications([])
+        }
+      } else {
+        setNotifications([])
       }
-    } catch (error) {
-      console.error("Error al marcar la notificación como leída:", error)
+    }
+
+    fetchNotifications()
+    // Set up polling to check for new notifications
+    const interval = setInterval(fetchNotifications, 5000)
+    return () => clearInterval(interval)
+  }, [isOpen])
+
+  const handleMarkAllAsRead = async () => {
+    if (notifications.length > 0) {
+      const orderIds = notifications.map((order) => order.id)
+      try {
+        await markNotificationsAsRead(orderIds) // Fixed: Changed from markNotificationAsRead to markNotificationsAsRead
+        setNotifications([])
+        setIsOpen(false)
+      } catch (error) {
+        console.error("Error marking notifications as read:", error)
+      }
     }
   }
 
-  // Marcar todas como leídas
-  const markAllAsRead = async () => {
+  const handleMarkAsRead = async (
+    orderId: string,
+    type: "status" | "execution" | "observation",
+    observationId?: string,
+  ) => {
     try {
-      const orderIds = ordersWithNotifications.map((order) => order.id)
-      if (orderIds.length > 0) {
-        await markNotificationsAsRead(orderIds)
-        toast({
-          title: "Notificaciones",
-          description: "Todas las notificaciones han sido marcadas como leídas",
-        })
-        if (onRefresh) {
-          onRefresh()
+      await markElementAsRead(orderId, type, observationId)
+      // Refresh notifications
+      const notificationState = localStorage.getItem("order_notifications")
+      const ordersData = localStorage.getItem("mockOrders")
+
+      if (notificationState && ordersData) {
+        try {
+          const parsed = JSON.parse(notificationState)
+          const orders = JSON.parse(ordersData)
+          const orderIds = parsed.orderIds || []
+
+          // Filter orders that have notifications
+          const notificationOrders = orders.filter((order: Order) => orderIds.includes(order.id))
+          setNotifications(notificationOrders)
+        } catch (e) {
+          console.error("Error parsing notifications:", e)
         }
       }
     } catch (error) {
-      console.error("Error al marcar todas las notificaciones como leídas:", error)
+      console.error("Error marking element as read:", error)
     }
   }
 
-  // Navegar a la orden
-  const navigateToOrder = (orderId: string) => {
-    router.push(`/ordenes/${orderId}`)
-    onOpenChange(false)
+  const toggleOpen = () => {
+    setIsOpen(!isOpen)
+  }
+
+  const getNotificationText = (order: Order) => {
+    if (!order.lastUpdateType) return "Actualización de orden"
+
+    switch (order.lastUpdateType) {
+      case "status":
+        return `Estado actualizado a: ${order.status}`
+      case "execution":
+        return `Ejecución: ${order.executedQuantity} a $${order.executedPrice}`
+      case "observation":
+        return "Nueva observación"
+      default:
+        return "Actualización de orden"
+    }
+  }
+
+  const getNotificationTime = (order: Order) => {
+    if (!order.updatedAt) return "Hace un momento"
+
+    try {
+      const date = new Date(order.updatedAt)
+      return formatDistanceToNow(date, { addSuffix: true, locale: es })
+    } catch (e) {
+      return "Hace un momento"
+    }
   }
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent>
-        <SheetHeader>
-          <SheetTitle>Centro de Notificaciones</SheetTitle>
-          <SheetDescription>
-            {ordersWithNotifications.length > 0
-              ? "Notificaciones de órdenes actualizadas"
-              : "No hay notificaciones nuevas"}
-          </SheetDescription>
-        </SheetHeader>
-
-        {ordersWithNotifications.length > 0 && (
-          <div className="mt-4 flex justify-end">
-            <Button variant="outline" size="sm" onClick={markAllAsRead}>
-              <BellOff className="mr-2 h-4 w-4" />
-              Marcar todas como leídas
-            </Button>
-          </div>
+    <div className="relative">
+      <Button variant="ghost" onClick={toggleOpen}>
+        Notificaciones
+        {notifications.length > 0 && (
+          <Badge variant="destructive" className="ml-2">
+            {notifications.length}
+          </Badge>
         )}
+      </Button>
 
-        <ScrollArea className="mt-4 h-[calc(100vh-180px)]">
-          <div className="space-y-4 pr-4">
-            {ordersWithNotifications.map((order) => (
-              <div
-                key={order.id}
-                className="rounded-lg border p-4 shadow-sm transition-colors hover:bg-muted/50 cursor-pointer"
-                onClick={() => navigateToOrder(order.id)}
-              >
-                <div className="flex items-start justify-between">
-                  <div>
-                    <h3 className="font-medium">Orden #{order.orderNumber || order.id.substring(0, 8)}</h3>
-                    <p className="text-sm text-muted-foreground">
-                      {order.clientName || "Cliente"} - {order.assetName || "Activo"}
-                    </p>
-                    <p className="mt-1 text-sm">
-                      {order.unreadUpdates} {order.unreadUpdates === 1 ? "actualización" : "actualizaciones"} sin leer
-                    </p>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      markAsRead(order.id)
-                    }}
-                  >
-                    <BellOff className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            ))}
-
-            {ordersWithNotifications.length === 0 && (
-              <div className="flex h-40 items-center justify-center">
-                <p className="text-center text-muted-foreground">No hay notificaciones nuevas</p>
-              </div>
+      {isOpen && (
+        <div className="absolute right-0 top-10 z-50 w-80 rounded-md border bg-background p-4 shadow-md">
+          <div className="mb-4 flex items-center justify-between">
+            <h3 className="text-lg font-semibold">Notificaciones</h3>
+            {notifications.length > 0 && (
+              <Button variant="ghost" size="sm" onClick={handleMarkAllAsRead}>
+                Marcar todo como leído
+              </Button>
             )}
           </div>
-        </ScrollArea>
-      </SheetContent>
-    </Sheet>
+
+          <Tabs defaultValue="all">
+            <TabsList className="mb-4 grid w-full grid-cols-2">
+              <TabsTrigger value="all">Todas</TabsTrigger>
+              <TabsTrigger value="unread">No leídas</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="all">
+              <ScrollArea className="h-[300px]">
+                {notifications.length > 0 ? (
+                  <div className="space-y-2">
+                    {notifications.map((order) => (
+                      <div key={order.id} className="rounded-md border p-2">
+                        <div className="flex items-center justify-between">
+                          <Link href={`/orders/${order.id}`} className="font-medium hover:underline">
+                            {order.client} - {order.ticker}
+                          </Link>
+                          <span className="text-xs text-muted-foreground">{getNotificationTime(order)}</span>
+                        </div>
+                        <p className="text-sm">{getNotificationText(order)}</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-center text-muted-foreground">No hay notificaciones</p>
+                )}
+              </ScrollArea>
+            </TabsContent>
+
+            <TabsContent value="unread">
+              <ScrollArea className="h-[300px]">
+                {notifications.length > 0 ? (
+                  <div className="space-y-2">
+                    {notifications.map((order) => (
+                      <div key={order.id} className="rounded-md border p-2">
+                        <div className="flex items-center justify-between">
+                          <Link href={`/orders/${order.id}`} className="font-medium hover:underline">
+                            {order.client} - {order.ticker}
+                          </Link>
+                          <span className="text-xs text-muted-foreground">{getNotificationTime(order)}</span>
+                        </div>
+                        <p className="text-sm">{getNotificationText(order)}</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-center text-muted-foreground">No hay notificaciones no leídas</p>
+                )}
+              </ScrollArea>
+            </TabsContent>
+          </Tabs>
+        </div>
+      )}
+    </div>
   )
 }

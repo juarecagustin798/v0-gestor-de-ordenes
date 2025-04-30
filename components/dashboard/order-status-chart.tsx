@@ -4,7 +4,6 @@ import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from "recharts"
 import { OrdenService } from "@/lib/services/orden-service-proxy"
-import { ChartContainer } from "@/components/ui/chart"
 
 export function OrderStatusChart() {
   const [data, setData] = useState<{ name: string; value: number }[]>([])
@@ -55,15 +54,7 @@ export function OrderStatusChart() {
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
           </div>
         ) : data.length > 0 ? (
-          <ChartContainer
-            config={{
-              status: {
-                label: "Estado",
-                color: "hsl(var(--chart-1))",
-              },
-            }}
-            className="h-[300px]"
-          >
+          <div className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
@@ -84,7 +75,7 @@ export function OrderStatusChart() {
                 <Legend />
               </PieChart>
             </ResponsiveContainer>
-          </ChartContainer>
+          </div>
         ) : (
           <div className="text-center py-8 text-muted-foreground">No hay datos suficientes para mostrar el gráfico</div>
         )}
