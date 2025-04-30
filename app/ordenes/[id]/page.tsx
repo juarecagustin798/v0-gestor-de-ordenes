@@ -1,8 +1,5 @@
-import { notFound } from "next/navigation"
-import { obtenerOrdenPorId } from "@/lib/services/orden-supabase-service"
 import { OrdenDetalleView } from "@/components/ordenes/orden-detalle-view"
-import { Suspense } from "react"
-import { Skeleton } from "@/components/ui/skeleton"
+import { notFound } from "next/navigation"
 
 interface OrdenPageProps {
   params: {
@@ -10,37 +7,16 @@ interface OrdenPageProps {
   }
 }
 
-export default async function OrdenPage({ params }: OrdenPageProps) {
-  return (
-    <div className="container mx-auto py-6">
-      <Suspense fallback={<OrdenDetailSkeleton />}>
-        <OrdenDetailWrapper id={params.id} />
-      </Suspense>
-    </div>
-  )
-}
-
-// Componente de carga para los detalles de la orden
-function OrdenDetailSkeleton() {
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <Skeleton className="h-10 w-64" />
-        <Skeleton className="h-10 w-32" />
-      </div>
-      <Skeleton className="h-[600px] w-full rounded-lg" />
-    </div>
-  )
-}
-
-// Componente wrapper para cargar los datos de la orden
-async function OrdenDetailWrapper({ id }: { id: string }) {
-  // Obtener la orden desde Supabase
-  const orden = await obtenerOrdenPorId(id)
-
-  if (!orden) {
-    notFound()
+export default function OrdenPage({ params }: OrdenPageProps) {
+  // Validar que el ID sea un formato válido
+  if (!params.id || params.id === "undefined") {
+    return notFound()
   }
 
-  return <OrdenDetalleView orden={orden} />
+  return (
+    <div className="container mx-auto py-6">
+      <h1 className="text-3xl font-bold mb-6">Detalle de Orden</h1>
+      <OrdenDetalleView ordenId={params.id} />
+    </div>
+  )
 }

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { TradingOrdersTable } from "@/components/trading-orders-table"
+import { TradingOrdersTableRealtime } from "@/components/trading/trading-orders-table-realtime"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { DashboardShell } from "@/components/dashboard-shell"
 import { Badge } from "@/components/ui/badge"
@@ -11,6 +11,7 @@ import { Send, ExternalLink } from "lucide-react"
 import { SendOrdersDialog } from "@/components/send-orders-dialog"
 import { SentOrdersDialog } from "@/components/sent-orders-dialog"
 import { createClient } from "@/lib/supabase/client"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 
 export default function TradingPage() {
   const [counts, setCounts] = useState({
@@ -161,19 +162,35 @@ export default function TradingPage() {
           </TabsTrigger>
         </TabsList>
         <TabsContent value="pending" className="space-y-4">
-          <TradingOrdersTable availableActions={["tomar", "cancelar"]} />
+          <Card>
+            <CardHeader>
+              <CardTitle>Órdenes Pendientes</CardTitle>
+              <CardDescription>Órdenes que aún no han sido tomadas por un operador.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <TradingOrdersTableRealtime availableActions={["tomar"]} />
+            </CardContent>
+          </Card>
         </TabsContent>
         <TabsContent value="in-progress" className="space-y-4">
-          <TradingOrdersTable availableActions={["ejecutar", "ejecutarParcial", "revisar", "cancelar"]} />
+          <Card>
+            <CardHeader>
+              <CardTitle>Órdenes En Proceso</CardTitle>
+              <CardDescription>Órdenes que has tomado y estás procesando.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <TradingOrdersTableRealtime availableActions={["ejecutar", "ejecutarParcial", "revisar", "cancelar"]} />
+            </CardContent>
+          </Card>
         </TabsContent>
         <TabsContent value="under-review" className="space-y-4">
-          <TradingOrdersTable readOnly={true} status="Revisar" />
+          <TradingOrdersTableRealtime readOnly={true} status="Revisar" />
         </TabsContent>
         <TabsContent value="completed" className="space-y-4">
-          <TradingOrdersTable readOnly={true} />
+          <TradingOrdersTableRealtime readOnly={true} />
         </TabsContent>
         <TabsContent value="canceled" className="space-y-4">
-          <TradingOrdersTable readOnly={true} />
+          <TradingOrdersTableRealtime readOnly={true} />
         </TabsContent>
       </Tabs>
 

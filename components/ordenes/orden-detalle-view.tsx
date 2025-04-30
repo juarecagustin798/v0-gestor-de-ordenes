@@ -1,70 +1,78 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import type { Orden, OrdenDetalle, OrdenObservacion } from "@/lib/services/orden-supabase-service"
-import { actualizarEstadoOrden, agregarObservacionOrden } from "@/lib/actions/orden-actions"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Textarea } from "@/components/ui/textarea"
-import { format } from "date-fns"
-import { es } from "date-fns/locale"
-import { ArrowLeft, MessageSquare, Clock, AlertCircle, CheckCircle2, XCircle } from "lucide-react"
-import Link from "next/link"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { useToast } from "@/components/ui/use-toast"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { OrdenService } from "@/lib/services/orden-service-proxy"
+import { StatusUpdateDialog } from "@/components/status-update-dialog"
+import { AddObservationForm } from "@/components/add-observation-form"
+import { OrderObservations } from "@/components/order-observations"
+import { toast } from "@/hooks/use-toast"
+import type { Orden } from "@/lib/types/orden.types"
 
 interface OrdenDetalleViewProps {
-  orden: Orden
+  ordenId: string
 }
 
-export function OrdenDetalleView({ orden }: OrdenDetalleViewProps) {
-  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false)
-  const [newStatus, setNewStatus] = useState("")
-  const [statusNote, setStatusNote] = useState("")
-  const [newObservation, setNewObservation] = useState("")
-  const [isAddingObservation, setIsAddingObservation] = useState(false)
-  const [isDialogOpen, setIsDialogOpen] = useState(false)
+export function OrdenDetalleView({ ordenId }: OrdenDetalleViewProps) {
   const router = useRouter()
-  const { toast } = useToast()
+  const [orden, setOrden] = useState<Orden | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [statusDialogOpen, setStatusDialogOpen] = useState(false)
+  const [selectedStatus, setSelectedStatus] = useState<string | null>(null)
 
-  // Formatear fechas
-  const createdAt = new Date(orden.created_at)
-  const updatedAt = new Date(orden.updated_at)
+  // Cargar datos de la orden
+  useEffect(() => {
+    const fetchOrden = async () => {
+      setLoading(true)
+      try {
+        const data = await OrdenService.obtenerOrdenPorId(ordenId)
+        setOrden(data)
+      } catch (error) {
+        console.error("Error al cargar la orden:", error)
+        toast({
+          title: "Error",
+          description: "No se pudo cargar la información de la orden",
+          variant: "destructive",
+        })
+      } finally {
+        setLoading(false)
+      }
+    }
 
-  // Manejar cambio de estado
-  const handleStatusChange = async () => {
-    if (!newStatus) return
+    fetchOrden()
+  }, [ordenId])
 
-    setIsUpdatingStatus(true)
+  // Manejar actualización de estado
+  const handleStatusUpdate = (status: string) => {
+    setSelectedStatus(status)
+    setStatusDialogOpen(true)
+  }
+
+  // Procesar la actualización de estado
+  const processStatusUpdate = async (params: { observation: string }) => {
+    if (!selectedStatus) return
+
     try {
-      const result = await actualizarEstadoOrden(orden.id, newStatus, statusNote)
+      const result = await OrdenService.actualizarEstadoOrden(ordenId, selectedStatus, params.observation)
 
       if (result.success) {
         toast({
           title: "Estado actualizado",
-          description: `La orden ha sido actualizada a "${newStatus}"`,
+          description: `La orden ha sido actualizada a estado ${selectedStatus}`,
         })
-        setIsDialogOpen(false)
-        setNewStatus("")
-        setStatusNote("")
-        router.refresh()
+
+        // Recargar la orden para mostrar los cambios
+        const updatedOrden = await OrdenService.obtenerOrdenPorId(ordenId)
+        setOrden(updatedOrden)
       } else {
         toast({
           title: "Error",
-          description: result.error || "No se pudo actualizar el estado",
+          description: result.error || "No se pudo actualizar el estado de la orden",
           variant: "destructive",
         })
       }
@@ -72,34 +80,28 @@ export function OrdenDetalleView({ orden }: OrdenDetalleViewProps) {
       console.error("Error al actualizar estado:", error)
       toast({
         title: "Error",
-        description: "Ha ocurrido un error al actualizar el estado",
+        description: "Ocurrió un error al actualizar el estado",
         variant: "destructive",
       })
     } finally {
-      setIsUpdatingStatus(false)
+      setStatusDialogOpen(false)
     }
   }
 
-  // Manejar agregar observación
-  const handleAddObservation = async () => {
-    if (!newObservation.trim()) return
-
-    setIsAddingObservation(true)
+  // Manejar la adición de una observación
+  const handleAddObservation = async (observacion: string) => {
     try {
-      const result = await agregarObservacionOrden(
-        orden.id,
-        newObservation,
-        "user-1", // En un entorno real, esto vendría del usuario autenticado
-        "Usuario Actual", // En un entorno real, esto vendría del usuario autenticado
-      )
+      const result = await OrdenService.agregarObservacion(ordenId, observacion)
 
       if (result.success) {
         toast({
           title: "Observación agregada",
           description: "La observación ha sido agregada correctamente",
         })
-        setNewObservation("")
-        router.refresh()
+
+        // Recargar la orden para mostrar los cambios
+        const updatedOrden = await OrdenService.obtenerOrdenPorId(ordenId)
+        setOrden(updatedOrden)
       } else {
         toast({
           title: "Error",
@@ -111,283 +113,218 @@ export function OrdenDetalleView({ orden }: OrdenDetalleViewProps) {
       console.error("Error al agregar observación:", error)
       toast({
         title: "Error",
-        description: "Ha ocurrido un error al agregar la observación",
+        description: "Ocurrió un error al agregar la observación",
         variant: "destructive",
       })
-    } finally {
-      setIsAddingObservation(false)
     }
   }
 
-  // Determinar el color del badge según el estado
-  const getStatusBadgeVariant = (estado: string) => {
-    switch (estado.toLowerCase()) {
-      case "pendiente":
-        return "outline"
-      case "tomada":
-      case "en proceso":
-        return "secondary"
-      case "ejecutada":
-      case "completada":
-        return "default"
-      case "cancelada":
-      case "rechazada":
-        return "destructive"
-      default:
-        return "outline"
+  // Determinar las acciones disponibles según el estado actual
+  const getAvailableActions = () => {
+    if (!orden) return []
+
+    const estado = orden.estado.toLowerCase()
+
+    if (estado === "pendiente") {
+      return [{ label: "Tomar orden", status: "Tomada", disabled: false }]
+    } else if (estado === "tomada") {
+      return [
+        { label: "Ejecutar", status: "Ejecutada", disabled: false },
+        { label: "Ejecutar parcialmente", status: "Ejecutada parcial", disabled: false },
+        { label: "Revisar", status: "Revisar", disabled: false },
+        { label: "Cancelar", status: "Cancelada", disabled: false },
+      ]
+    } else if (estado === "ejecutada parcial") {
+      return [
+        { label: "Ejecutar completamente", status: "Ejecutada", disabled: false },
+        { label: "Revisar", status: "Revisar", disabled: false },
+        { label: "Cancelar", status: "Cancelada", disabled: false },
+      ]
+    } else if (estado === "revisar") {
+      return [
+        { label: "Tomar", status: "Tomada", disabled: false },
+        { label: "Ejecutar", status: "Ejecutada", disabled: false },
+        { label: "Cancelar", status: "Cancelada", disabled: false },
+      ]
     }
+
+    // Para estados finales como "Ejecutada" o "Cancelada", no hay acciones disponibles
+    return []
   }
 
-  // Obtener el icono según el estado
-  const getStatusIcon = (estado: string) => {
-    switch (estado.toLowerCase()) {
-      case "pendiente":
-        return <Clock className="h-4 w-4 mr-1" />
-      case "tomada":
-      case "en proceso":
-        return <AlertCircle className="h-4 w-4 mr-1" />
-      case "ejecutada":
-      case "completada":
-        return <CheckCircle2 className="h-4 w-4 mr-1" />
-      case "cancelada":
-      case "rechazada":
-        return <XCircle className="h-4 w-4 mr-1" />
-      default:
-        return <Clock className="h-4 w-4 mr-1" />
-    }
-  }
-
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-2">
-          <Link href="/ordenes">
-            <Button variant="outline" size="icon">
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-          </Link>
-          <h1 className="text-2xl font-bold">Detalles de la Orden</h1>
-        </div>
-
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button>Cambiar Estado</Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Cambiar Estado de la Orden</DialogTitle>
-              <DialogDescription>Selecciona el nuevo estado para esta orden.</DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <label htmlFor="status">Nuevo Estado</label>
-                <Select onValueChange={setNewStatus} value={newStatus}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar estado" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="pendiente">Pendiente</SelectItem>
-                    <SelectItem value="tomada">Tomada</SelectItem>
-                    <SelectItem value="en proceso">En Proceso</SelectItem>
-                    <SelectItem value="ejecutada">Ejecutada</SelectItem>
-                    <SelectItem value="completada">Completada</SelectItem>
-                    <SelectItem value="cancelada">Cancelada</SelectItem>
-                    <SelectItem value="rechazada">Rechazada</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-2">
-                <label htmlFor="note">Observación (opcional)</label>
-                <Textarea
-                  id="note"
-                  placeholder="Añade una observación sobre el cambio de estado"
-                  value={statusNote}
-                  onChange={(e) => setStatusNote(e.target.value)}
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
-                Cancelar
-              </Button>
-              <Button onClick={handleStatusChange} disabled={!newStatus || isUpdatingStatus}>
-                {isUpdatingStatus ? "Actualizando..." : "Guardar Cambios"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </div>
-
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-        <Card className="md:col-span-2">
-          <CardHeader>
-            <CardTitle>Información de la Orden</CardTitle>
-            <CardDescription>Detalles generales de la orden</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">ID de la Orden</p>
-                  <p className="font-mono">{orden.id}</p>
-                </div>
-                <Badge variant={getStatusBadgeVariant(orden.estado)} className="flex items-center">
-                  {getStatusIcon(orden.estado)}
-                  {orden.estado}
-                </Badge>
-              </div>
-
-              <Separator />
-
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Cliente</p>
-                <p className="font-medium">{orden.cliente_nombre}</p>
-                {orden.cliente_cuenta && (
-                  <p className="text-sm text-muted-foreground">Cuenta: {orden.cliente_cuenta}</p>
-                )}
-              </div>
-
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Tipo de Operación</p>
-                  <Badge variant={orden.tipo_operacion === "Compra" ? "default" : "destructive"}>
-                    {orden.tipo_operacion}
-                  </Badge>
-                </div>
-
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Mercado</p>
-                  <p>{orden.mercado || "No especificado"}</p>
-                </div>
-              </div>
-
-              <Separator />
-
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Fecha de Creación</p>
-                  <p>{format(createdAt, "dd/MM/yyyy HH:mm", { locale: es })}</p>
-                </div>
-
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Última Actualización</p>
-                  <p>{format(updatedAt, "dd/MM/yyyy HH:mm", { locale: es })}</p>
-                </div>
-              </div>
-
-              {orden.notas && (
-                <>
-                  <Separator />
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Notas</p>
-                    <p className="whitespace-pre-line">{orden.notas}</p>
-                  </div>
-                </>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Detalles del Activo</CardTitle>
-            <CardDescription>Información sobre el activo</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {orden.detalles && orden.detalles.length > 0 ? (
-              <div className="space-y-4">
-                {orden.detalles.map((detalle: OrdenDetalle) => (
-                  <div key={detalle.id} className="space-y-3">
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">Ticker</p>
-                      <p className="font-medium">{detalle.ticker}</p>
-                    </div>
-
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">Cantidad</p>
-                      <p>{detalle.cantidad.toLocaleString()}</p>
-                    </div>
-
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">Precio</p>
-                      <p>
-                        {detalle.es_orden_mercado
-                          ? "Orden a mercado"
-                          : `$${detalle.precio.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-                      </p>
-                    </div>
-
-                    {!detalle.es_orden_mercado && (
-                      <div>
-                        <p className="text-sm font-medium text-muted-foreground">Importe Total</p>
-                        <p className="font-medium">
-                          $
-                          {(detalle.cantidad * detalle.precio).toLocaleString(undefined, {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2,
-                          })}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-muted-foreground">No hay detalles disponibles</p>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
+  // Renderizar estado de carga
+  if (loading) {
+    return (
       <Card>
-        <CardHeader>
-          <CardTitle>Observaciones</CardTitle>
-          <CardDescription>Historial de observaciones y comentarios</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Tabs defaultValue="observaciones">
-            <TabsList>
-              <TabsTrigger value="observaciones">Observaciones</TabsTrigger>
-              <TabsTrigger value="nueva">Nueva Observación</TabsTrigger>
-            </TabsList>
-            <TabsContent value="observaciones" className="pt-4">
-              {orden.observaciones && orden.observaciones.length > 0 ? (
-                <div className="space-y-4">
-                  {orden.observaciones.map((obs: OrdenObservacion) => (
-                    <div key={obs.id} className="rounded-lg border p-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-2">
-                          <MessageSquare className="h-4 w-4 text-muted-foreground" />
-                          <p className="font-medium">{obs.usuario_nombre || "Usuario"}</p>
-                        </div>
-                        <p className="text-sm text-muted-foreground">
-                          {format(new Date(obs.created_at), "dd/MM/yyyy HH:mm", { locale: es })}
-                        </p>
-                      </div>
-                      <p className="mt-2 whitespace-pre-line">{obs.texto}</p>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-muted-foreground">No hay observaciones registradas</p>
-              )}
-            </TabsContent>
-            <TabsContent value="nueva" className="pt-4">
-              <div className="space-y-4">
-                <Textarea
-                  placeholder="Escribe una nueva observación..."
-                  value={newObservation}
-                  onChange={(e) => setNewObservation(e.target.value)}
-                  className="min-h-[100px]"
-                />
-                <Button onClick={handleAddObservation} disabled={!newObservation.trim() || isAddingObservation}>
-                  {isAddingObservation ? "Agregando..." : "Agregar Observación"}
-                </Button>
-              </div>
-            </TabsContent>
-          </Tabs>
+        <CardContent className="pt-6">
+          <div className="flex justify-center items-center h-64">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+          </div>
         </CardContent>
       </Card>
-    </div>
+    )
+  }
+
+  // Renderizar mensaje si no se encuentra la orden
+  if (!orden) {
+    return (
+      <Card>
+        <CardContent className="pt-6">
+          <div className="text-center py-8">
+            <h3 className="text-lg font-medium">Orden no encontrada</h3>
+            <p className="text-muted-foreground mt-2">No se pudo encontrar la orden con ID {ordenId}</p>
+            <Button className="mt-4" onClick={() => router.push("/ordenes")}>
+              Volver a órdenes
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  // Determinar la variante del badge según el estado
+  const getStatusBadgeVariant = (status: string) => {
+    const lowerStatus = status.toLowerCase()
+
+    switch (lowerStatus) {
+      case "pendiente":
+        return "outline"
+      case "tomada":
+        return "blue" as any
+      case "ejecutada parcial":
+        return "yellow" as any
+      case "ejecutada":
+        return "green" as any
+      case "revisar":
+        return "orange" as any
+      case "cancelada":
+        return "destructive"
+      default:
+        return "default"
+    }
+  }
+
+  // Obtener el primer detalle de la orden (si existe)
+  const detalle = orden.detalles && orden.detalles.length > 0 ? orden.detalles[0] : null
+
+  return (
+    <>
+      <Card className="mb-6">
+        <CardHeader>
+          <div className="flex justify-between items-start">
+            <div>
+              <CardTitle>Orden #{orden.id}</CardTitle>
+              <CardDescription>
+                Creada el {new Date(orden.created_at).toLocaleDateString()} a las{" "}
+                {new Date(orden.created_at).toLocaleTimeString()}
+              </CardDescription>
+            </div>
+            <Badge variant={getStatusBadgeVariant(orden.estado)}>{orden.estado}</Badge>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <h3 className="text-lg font-medium mb-2">Información de la orden</h3>
+              <div className="space-y-2">
+                <div className="grid grid-cols-2">
+                  <span className="text-muted-foreground">Cliente:</span>
+                  <span>{orden.cliente_nombre}</span>
+                </div>
+                <div className="grid grid-cols-2">
+                  <span className="text-muted-foreground">Cuenta:</span>
+                  <span>{orden.cliente_cuenta || "No especificada"}</span>
+                </div>
+                <div className="grid grid-cols-2">
+                  <span className="text-muted-foreground">Tipo de operación:</span>
+                  <span>{orden.tipo_operacion}</span>
+                </div>
+                <div className="grid grid-cols-2">
+                  <span className="text-muted-foreground">Mercado:</span>
+                  <span>{orden.mercado || "No especificado"}</span>
+                </div>
+                <div className="grid grid-cols-2">
+                  <span className="text-muted-foreground">Fecha de vencimiento:</span>
+                  <span>
+                    {orden.fecha_vencimiento
+                      ? new Date(orden.fecha_vencimiento).toLocaleDateString()
+                      : "No especificada"}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {detalle && (
+              <div>
+                <h3 className="text-lg font-medium mb-2">Detalles del activo</h3>
+                <div className="space-y-2">
+                  <div className="grid grid-cols-2">
+                    <span className="text-muted-foreground">Ticker:</span>
+                    <span>{detalle.ticker}</span>
+                  </div>
+                  <div className="grid grid-cols-2">
+                    <span className="text-muted-foreground">Cantidad:</span>
+                    <span>{detalle.cantidad}</span>
+                  </div>
+                  <div className="grid grid-cols-2">
+                    <span className="text-muted-foreground">Precio:</span>
+                    <span>
+                      {new Intl.NumberFormat("es-AR", {
+                        style: "currency",
+                        currency: "ARS",
+                      }).format(detalle.precio || 0)}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2">
+                    <span className="text-muted-foreground">Total:</span>
+                    <span className="font-bold">
+                      {new Intl.NumberFormat("es-AR", {
+                        style: "currency",
+                        currency: "ARS",
+                      }).format((detalle.cantidad || 0) * (detalle.precio || 0))}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <Separator className="my-6" />
+
+          <div className="space-y-4">
+            <h3 className="text-lg font-medium">Observaciones</h3>
+            <ScrollArea className="h-[200px] rounded-md border p-4">
+              <OrderObservations observations={orden.observaciones || []} />
+            </ScrollArea>
+            <AddObservationForm onSubmit={handleAddObservation} />
+          </div>
+        </CardContent>
+        <CardFooter className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={() => router.push("/ordenes")}>
+            Volver a órdenes
+          </Button>
+
+          {getAvailableActions().map((action) => (
+            <Button
+              key={action.status}
+              onClick={() => handleStatusUpdate(action.status)}
+              disabled={action.disabled}
+              variant={action.status === "Cancelada" ? "destructive" : "default"}
+            >
+              {action.label}
+            </Button>
+          ))}
+        </CardFooter>
+      </Card>
+
+      <StatusUpdateDialog
+        open={statusDialogOpen}
+        onOpenChange={setStatusDialogOpen}
+        status={selectedStatus || ""}
+        onConfirm={processStatusUpdate}
+        showExecutionFields={selectedStatus === "Ejecutada" || selectedStatus === "Ejecutada parcial"}
+        currentOrder={orden}
+      />
+    </>
   )
 }

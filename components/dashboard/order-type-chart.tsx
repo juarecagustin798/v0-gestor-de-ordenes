@@ -1,85 +1,95 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Skeleton } from "@/components/ui/skeleton"
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
-import { OrdenService } from "@/lib/services/orden-supabase-service-client"
-
-interface TypeCount {
-  name: string
-  cantidad: number
-}
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend, ResponsiveContainer } from "recharts"
+import { OrdenService } from "@/lib/services/orden-service-proxy"
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
 
 export function OrderTypeChart() {
-  const [typeData, setTypeData] = useState<TypeCount[]>([])
+  const [data, setData] = useState<{ name: string; compra: number; venta: number }[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    async function fetchOrderTypeData() {
+    const fetchData = async () => {
       try {
-        setLoading(true)
         const orders = await OrdenService.obtenerOrdenes()
 
-        // Contar órdenes por tipo
-        const typeCounts: Record<string, number> = {}
+        // Contar órdenes por tipo y mercado
+        const typeCounts: Record<string, { compra: number; venta: number }> = {}
+
         orders.forEach((order) => {
-          const type = order.tipo_operacion
-          typeCounts[type] = (typeCounts[type] || 0) + 1
+          const market = order.mercado || "No especificado"
+          const type = order.tipo_operacion?.toLowerCase() || "desconocido"
+
+          if (!typeCounts[market]) {
+            typeCounts[market] = { compra: 0, venta: 0 }
+          }
+
+          if (type === "compra") {
+            typeCounts[market].compra += 1
+          } else if (type === "venta") {
+            typeCounts[market].venta += 1
+          }
         })
 
         // Convertir a formato para el gráfico
-        const chartData = Object.entries(typeCounts).map(([type, count]) => ({
-          name: type,
-          cantidad: count,
+        const chartData = Object.entries(typeCounts).map(([name, counts]) => ({
+          name,
+          compra: counts.compra,
+          venta: counts.venta,
         }))
 
-        setTypeData(chartData)
+        setData(chartData)
       } catch (error) {
-        console.error("Error al cargar datos de tipos de órdenes:", error)
+        console.error("Error al cargar datos para el gráfico:", error)
       } finally {
         setLoading(false)
       }
     }
 
-    fetchOrderTypeData()
+    fetchData()
   }, [])
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Tipos de Órdenes</CardTitle>
-        <CardDescription>Distribución de órdenes por tipo de operación</CardDescription>
+        <CardTitle>Órdenes por Tipo y Mercado</CardTitle>
+        <CardDescription>Distribución de compras y ventas por mercado</CardDescription>
       </CardHeader>
       <CardContent>
         {loading ? (
-          <div className="w-full h-[300px] flex items-center justify-center">
-            <Skeleton className="h-[250px] w-full" />
+          <div className="flex justify-center items-center h-64">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
           </div>
-        ) : typeData.length === 0 ? (
-          <div className="text-center py-6 text-muted-foreground h-[300px] flex items-center justify-center">
-            No hay datos de órdenes para mostrar
-          </div>
-        ) : (
-          <div className="w-full h-[300px]">
+        ) : data.length > 0 ? (
+          <ChartContainer
+            config={{
+              compra: {
+                label: "Compras",
+                color: "hsl(var(--chart-1))",
+              },
+              venta: {
+                label: "Ventas",
+                color: "hsl(var(--chart-2))",
+              },
+            }}
+            className="h-[300px]"
+          >
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart
-                data={typeData}
-                margin={{
-                  top: 20,
-                  right: 30,
-                  left: 20,
-                  bottom: 5,
-                }}
-              >
+              <BarChart data={data}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="name" />
                 <YAxis />
-                <Tooltip formatter={(value) => [`${value} órdenes`, "Cantidad"]} />
-                <Bar dataKey="cantidad" fill="#3B82F6" name="Cantidad" />
+                <ChartTooltip content={<ChartTooltipContent />} />
+                <Legend />
+                <Bar dataKey="compra" fill="var(--color-compra)" name="Compras" />
+                <Bar dataKey="venta" fill="var(--color-venta)" name="Ventas" />
               </BarChart>
             </ResponsiveContainer>
-          </div>
+          </ChartContainer>
+        ) : (
+          <div className="text-center py-8 text-muted-foreground">No hay datos suficientes para mostrar el gráfico</div>
         )}
       </CardContent>
     </Card>

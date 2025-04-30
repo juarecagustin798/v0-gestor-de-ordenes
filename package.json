@@ -65,8 +65,8 @@
     "fs": "latest",
     "react-window": "latest",
     "idb": "latest",
-    "@supabase/auth-helpers-nextjs": "latest",
-    "@tanstack/react-table": "latest"
+    "@tanstack/react-table": "latest",
+    "@supabase/ssr": "latest"
   },
   "devDependencies": {
     "@types/node": "^22",

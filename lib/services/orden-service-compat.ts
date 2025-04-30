@@ -1,8 +1,7 @@
-// This file provides backward compatibility for code that imports OrdenService
 import {
-  crearOrden,
   obtenerOrdenes,
   obtenerOrdenPorId,
+  crearOrden,
   actualizarOrden,
   eliminarOrden,
   agregarObservacion,
@@ -11,11 +10,12 @@ import {
   obtenerOrdenesPorEstado,
 } from "./orden-supabase-service"
 
-// Re-export the OrdenService object for backward compatibility
+// Este archivo proporciona compatibilidad con el antiguo OrdenService
+// para que los componentes existentes sigan funcionando sin cambios
 export const OrdenService = {
-  crearOrden,
   obtenerOrdenes,
   obtenerOrdenPorId,
+  crearOrden,
   actualizarOrden,
   eliminarOrden,
   agregarObservacion,

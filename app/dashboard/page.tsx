@@ -1,32 +1,35 @@
-export const dynamic = "force-dynamic"
-export const revalidate = 0
-
-import { DashboardShell } from "@/components/dashboard-shell"
 import { DashboardStats } from "@/components/dashboard/dashboard-stats"
-import { RecentOrdersTable } from "@/components/dashboard/recent-orders-table"
 import { OrderStatusChart } from "@/components/dashboard/order-status-chart"
 import { OrderTypeChart } from "@/components/dashboard/order-type-chart"
+import { RecentOrdersTable } from "@/components/dashboard/recent-orders-table"
+import { FavoriteAssetsManager } from "@/components/dashboard/favorite-assets-manager"
+import { ClientFileStatus } from "@/components/dashboard/client-file-status"
 
 export default function DashboardPage() {
   return (
-    <DashboardShell>
-      <div className="grid gap-6">
-        <div className="flex items-center justify-between">
-          <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
-        </div>
+    <div className="container mx-auto py-6">
+      <h1 className="text-3xl font-bold mb-6">Dashboard</h1>
 
-        {/* Estadísticas generales */}
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 mb-6">
         <DashboardStats />
-
-        {/* Gráficos y tablas */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-2">
-          <OrderStatusChart />
-          <OrderTypeChart />
-        </div>
-
-        {/* Órdenes recientes */}
-        <RecentOrdersTable />
       </div>
-    </DashboardShell>
+
+      <div className="grid gap-6 md:grid-cols-2 mb-6">
+        <OrderStatusChart />
+        <OrderTypeChart />
+      </div>
+
+      <div className="grid gap-6 md:grid-cols-3 mb-6">
+        <div className="md:col-span-2">
+          <RecentOrdersTable />
+        </div>
+        <div>
+          <div className="space-y-6">
+            <FavoriteAssetsManager />
+            <ClientFileStatus />
+          </div>
+        </div>
+      </div>
+    </div>
   )
 }

@@ -6,9 +6,9 @@ export async function GET(request: Request, { params }: { params: { id: string }
     const clienteId = params.id
     const ordenes = await obtenerOrdenesPorCliente(clienteId)
 
-    return NextResponse.json(ordenes)
+    return NextResponse.json({ ordenes })
   } catch (error) {
-    console.error("Error obteniendo ordenes:", error)
-    return NextResponse.json({ error: "Failed to fetch orders" }, { status: 500 })
+    console.error(`Error al obtener órdenes del cliente ${params.id}:`, error)
+    return NextResponse.json({ error: "Error al obtener las órdenes del cliente" }, { status: 500 })
   }
 }

@@ -1,100 +1,92 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Skeleton } from "@/components/ui/skeleton"
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from "recharts"
-import { OrdenService } from "@/lib/services/orden-supabase-service-client"
-
-interface StatusCount {
-  name: string
-  value: number
-  color: string
-}
+import { OrdenService } from "@/lib/services/orden-service-proxy"
+import { ChartContainer } from "@/components/ui/chart"
 
 export function OrderStatusChart() {
-  const [statusData, setStatusData] = useState<StatusCount[]>([])
+  const [data, setData] = useState<{ name: string; value: number }[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    async function fetchOrderStatusData() {
+    const fetchData = async () => {
       try {
-        setLoading(true)
         const orders = await OrdenService.obtenerOrdenes()
 
         // Contar órdenes por estado
         const statusCounts: Record<string, number> = {}
+
         orders.forEach((order) => {
-          const status = order.estado.toLowerCase()
+          const status = order.estado || "Desconocido"
           statusCounts[status] = (statusCounts[status] || 0) + 1
         })
 
-        // Definir colores para cada estado
-        const statusColors: Record<string, string> = {
-          pendiente: "#EAB308", // yellow-500
-          tomada: "#3B82F6", // blue-500
-          ejecutada: "#22C55E", // green-500
-          "ejecutada parcial": "#10B981", // emerald-500
-          cancelada: "#EF4444", // red-500
-          revisar: "#A855F7", // purple-500
-        }
-
         // Convertir a formato para el gráfico
-        const chartData = Object.entries(statusCounts).map(([status, count]) => ({
-          name: status.charAt(0).toUpperCase() + status.slice(1),
-          value: count,
-          color: statusColors[status] || "#94A3B8", // slate-400 como color por defecto
+        const chartData = Object.entries(statusCounts).map(([name, value]) => ({
+          name,
+          value,
         }))
 
-        setStatusData(chartData)
+        setData(chartData)
       } catch (error) {
-        console.error("Error al cargar datos de estado de órdenes:", error)
+        console.error("Error al cargar datos para el gráfico:", error)
       } finally {
         setLoading(false)
       }
     }
 
-    fetchOrderStatusData()
+    fetchData()
   }, [])
+
+  // Colores para los diferentes estados
+  const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884d8", "#82ca9d"]
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Estado de Órdenes</CardTitle>
-        <CardDescription>Distribución de órdenes por estado</CardDescription>
+        <CardTitle>Órdenes por Estado</CardTitle>
+        <CardDescription>Distribución de órdenes según su estado actual</CardDescription>
       </CardHeader>
       <CardContent>
         {loading ? (
-          <div className="w-full h-[300px] flex items-center justify-center">
-            <Skeleton className="h-[250px] w-[250px] rounded-full" />
+          <div className="flex justify-center items-center h-64">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
           </div>
-        ) : statusData.length === 0 ? (
-          <div className="text-center py-6 text-muted-foreground h-[300px] flex items-center justify-center">
-            No hay datos de órdenes para mostrar
-          </div>
-        ) : (
-          <div className="w-full h-[300px]">
+        ) : data.length > 0 ? (
+          <ChartContainer
+            config={{
+              status: {
+                label: "Estado",
+                color: "hsl(var(--chart-1))",
+              },
+            }}
+            className="h-[300px]"
+          >
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
-                  data={statusData}
+                  data={data}
                   cx="50%"
                   cy="50%"
                   labelLine={false}
                   outerRadius={80}
                   fill="#8884d8"
                   dataKey="value"
-                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                  label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
                 >
-                  {statusData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  {data.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>
-                <Tooltip formatter={(value: number) => [`${value} órdenes`, "Cantidad"]} />
+                <Tooltip formatter={(value) => [`${value} órdenes`, "Cantidad"]} />
                 <Legend />
               </PieChart>
             </ResponsiveContainer>
-          </div>
+          </ChartContainer>
+        ) : (
+          <div className="text-center py-8 text-muted-foreground">No hay datos suficientes para mostrar el gráfico</div>
         )}
       </CardContent>
     </Card>

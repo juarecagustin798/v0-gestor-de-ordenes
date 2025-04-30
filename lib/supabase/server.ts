@@ -1,4 +1,4 @@
-import { createClient } from "@supabase/supabase-js"
+import { createClient as createSupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/lib/supabase/database.types"
 
 // Simplified server client that works in both server components and API routes
@@ -10,9 +10,12 @@ export const createServerClient = () => {
     throw new Error("Missing Supabase environment variables")
   }
 
-  return createClient<Database>(supabaseUrl, supabaseKey, {
+  return createSupabaseClient<Database>(supabaseUrl, supabaseKey, {
     auth: {
       persistSession: false,
     },
   })
 }
+
+// Export createClient for backward compatibility
+export const createClient = createServerClient

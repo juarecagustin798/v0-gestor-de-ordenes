@@ -27,30 +27,20 @@ export function ExecutionConfirmationDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Ejecutar {orderCount > 1 ? `${orderCount} órdenes` : "orden"}</DialogTitle>
+          <DialogTitle>Confirmar ejecución</DialogTitle>
           <DialogDescription>
-            {orderCount > 1
-              ? "Está a punto de marcar varias órdenes como ejecutadas."
-              : "Está a punto de marcar esta orden como ejecutada."}
+            {orderCount === 1
+              ? "¿Deseas completar información adicional para esta orden?"
+              : `¿Deseas completar información adicional para estas ${orderCount} órdenes?`}
           </DialogDescription>
         </DialogHeader>
-
-        <div className="py-4">
-          <p>¿Desea completar información adicional sobre {orderCount > 1 ? "las órdenes" : "la orden"}?</p>
-          <p className="text-sm text-muted-foreground mt-2">
-            Si selecciona "No", {orderCount > 1 ? "las órdenes serán marcadas" : "la orden será marcada"} como
-            ejecutada(s) sin información adicional.
-          </p>
-        </div>
-
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancelar
+        <DialogFooter className="flex flex-col sm:flex-row gap-2">
+          <Button variant="outline" onClick={() => onConfirm(false)} className="sm:flex-1">
+            No, ejecutar directamente
           </Button>
-          <Button variant="secondary" onClick={() => onConfirm(false)}>
-            No, ejecutar sin información
+          <Button onClick={() => onConfirm(true)} className="sm:flex-1">
+            Sí, completar información
           </Button>
-          <Button onClick={() => onConfirm(true)}>Sí, completar información</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

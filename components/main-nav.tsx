@@ -1,4 +1,5 @@
 "use client"
+
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
@@ -26,7 +27,7 @@ interface MainNavProps {
 }
 
 export function MainNav({ orders = [], onRefreshOrders }: MainNavProps) {
-  const pathname = usePathname()
+  const pathname = usePathname() || ""
   const router = useRouter()
   const [notificationCenterOpen, setNotificationCenterOpen] = useState(false)
 
@@ -67,6 +68,16 @@ export function MainNav({ orders = [], onRefreshOrders }: MainNavProps) {
     setNotificationCenterOpen(true)
   }
 
+  // Helper function to safely check if pathname starts with a prefix
+  const pathnameStartsWith = (prefix: string): boolean => {
+    return pathname ? pathname.startsWith(prefix) : false
+  }
+
+  // Helper function to check if pathname equals a value
+  const pathnameEquals = (value: string): boolean => {
+    return pathname === value
+  }
+
   return (
     <div className="mr-4 flex">
       <Link href="/" className="mr-6 flex items-center space-x-2">
@@ -78,7 +89,7 @@ export function MainNav({ orders = [], onRefreshOrders }: MainNavProps) {
           href="/dashboard"
           className={cn(
             "transition-colors hover:text-foreground/80",
-            pathname === "/dashboard" ? "text-foreground" : "text-foreground/60",
+            pathnameEquals("/dashboard") ? "text-foreground" : "text-foreground/60",
           )}
         >
           Dashboard
@@ -125,7 +136,7 @@ export function MainNav({ orders = [], onRefreshOrders }: MainNavProps) {
           href="/trading"
           className={cn(
             "transition-colors hover:text-foreground/80",
-            pathname?.startsWith("/trading") ? "text-foreground" : "text-foreground/60",
+            pathnameStartsWith("/trading") ? "text-foreground" : "text-foreground/60",
           )}
         >
           Mesa de Trading
@@ -135,7 +146,7 @@ export function MainNav({ orders = [], onRefreshOrders }: MainNavProps) {
           href="/config"
           className={cn(
             "transition-colors hover:text-foreground/80",
-            pathname?.startsWith("/config") ? "text-foreground" : "text-foreground/60",
+            pathnameStartsWith("/config") ? "text-foreground" : "text-foreground/60",
           )}
         >
           Configuración
@@ -145,7 +156,7 @@ export function MainNav({ orders = [], onRefreshOrders }: MainNavProps) {
           href="/admin"
           className={cn(
             "transition-colors hover:text-foreground/80",
-            pathname?.startsWith("/admin") ? "text-foreground" : "text-foreground/60",
+            pathnameStartsWith("/admin") ? "text-foreground" : "text-foreground/60",
           )}
         >
           Administración
