@@ -2,15 +2,10 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Separator } from "@/components/ui/separator"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { OrdenService } from "@/lib/services/orden-service-proxy"
-import { StatusUpdateDialog } from "@/components/status-update-dialog"
-import { AddObservationForm } from "@/components/add-observation-form"
-import { OrderObservations } from "@/components/order-observations"
 import { toast } from "@/hooks/use-toast"
 import type { Orden } from "@/lib/types/orden.types"
 
@@ -288,43 +283,8 @@ export function OrdenDetalleView({ ordenId }: OrdenDetalleViewProps) {
               </div>
             )}
           </div>
-
-          <Separator className="my-6" />
-
-          <div className="space-y-4">
-            <h3 className="text-lg font-medium">Observaciones</h3>
-            <ScrollArea className="h-[200px] rounded-md border p-4">
-              <OrderObservations observations={orden.observaciones || []} />
-            </ScrollArea>
-            <AddObservationForm onSubmit={handleAddObservation} />
-          </div>
         </CardContent>
-        <CardFooter className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={() => router.push("/ordenes")}>
-            Volver a órdenes
-          </Button>
-
-          {getAvailableActions().map((action) => (
-            <Button
-              key={action.status}
-              onClick={() => handleStatusUpdate(action.status)}
-              disabled={action.disabled}
-              variant={action.status === "Cancelada" ? "destructive" : "default"}
-            >
-              {action.label}
-            </Button>
-          ))}
-        </CardFooter>
       </Card>
-
-      <StatusUpdateDialog
-        open={statusDialogOpen}
-        onOpenChange={setStatusDialogOpen}
-        status={selectedStatus || ""}
-        onConfirm={processStatusUpdate}
-        showExecutionFields={selectedStatus === "Ejecutada" || selectedStatus === "Ejecutada parcial"}
-        currentOrder={orden}
-      />
     </>
   )
 }

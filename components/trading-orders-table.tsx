@@ -13,19 +13,7 @@ import {
   getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table"
-import {
-  ArrowUpDown,
-  ChevronDown,
-  MoreHorizontal,
-  FileText,
-  CheckCircle,
-  AlertCircle,
-  Ban,
-  Clock,
-  ArrowRightLeft,
-  Filter,
-  X,
-} from "lucide-react"
+import { ArrowUpDown, ChevronDown, MoreHorizontal, FileText, CheckCircle, AlertCircle, Ban, Clock, ArrowRightLeft, Filter, X } from 'lucide-react'
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 
